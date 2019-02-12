@@ -21,6 +21,7 @@ import com.facebook.presto.hive.InternalHiveSplit;
 import com.facebook.presto.hive.InternalHiveSplit.InternalHiveBlock;
 import com.facebook.presto.hive.S3SelectPushdown;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.collect.ImmutableList;
@@ -59,6 +60,7 @@ public class InternalHiveSplitFactory
     private final Map<Integer, HiveTypeName> columnCoercions;
     private final Optional<BucketConversion> bucketConversion;
     private final boolean forceLocalScheduling;
+    private final Optional<TableScanPipeline> scanPipeline;
     private final boolean s3SelectPushdownEnabled;
 
     public InternalHiveSplitFactory(
@@ -71,6 +73,7 @@ public class InternalHiveSplitFactory
             Map<Integer, HiveTypeName> columnCoercions,
             Optional<BucketConversion> bucketConversion,
             boolean forceLocalScheduling,
+            Optional<TableScanPipeline> scanPipeline,
             boolean s3SelectPushdownEnabled)
     {
         this.fileSystem = requireNonNull(fileSystem, "fileSystem is null");
@@ -82,6 +85,7 @@ public class InternalHiveSplitFactory
         this.columnCoercions = requireNonNull(columnCoercions, "columnCoercions is null");
         this.bucketConversion = requireNonNull(bucketConversion, "bucketConversion is null");
         this.forceLocalScheduling = forceLocalScheduling;
+        this.scanPipeline = scanPipeline;
         this.s3SelectPushdownEnabled = s3SelectPushdownEnabled;
     }
 
@@ -136,6 +140,8 @@ public class InternalHiveSplitFactory
             OptionalInt bucketNumber,
             boolean splittable)
     {
+        // If the scan pipeline is present, then we can't split the file
+        splittable = splittable && !scanPipeline.isPresent();
         String pathString = path.toString();
         if (!pathMatchesPredicate(pathDomain, pathString)) {
             return Optional.empty();
@@ -189,6 +195,7 @@ public class InternalHiveSplitFactory
                 forceLocalScheduling && allBlocksHaveRealAddress(blocks),
                 columnCoercions,
                 bucketConversion,
+                scanPipeline,
                 s3SelectPushdownEnabled && S3SelectPushdown.isCompressionCodecSupported(inputFormat, path)));
     }
 

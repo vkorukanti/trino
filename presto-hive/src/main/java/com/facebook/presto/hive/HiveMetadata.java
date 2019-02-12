@@ -55,6 +55,9 @@ import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.connector.ConnectorPartitioningHandle;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode.Aggregation;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.predicate.NullableValue;
 import com.facebook.presto.spi.predicate.TupleDomain;
@@ -112,10 +115,12 @@ import static com.facebook.presto.hive.HiveBasicStatistics.createEmptyStatistics
 import static com.facebook.presto.hive.HiveBasicStatistics.createZeroStatistics;
 import static com.facebook.presto.hive.HiveBucketing.getHiveBucketHandle;
 import static com.facebook.presto.hive.HiveColumnHandle.BUCKET_COLUMN_NAME;
+import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.AGGREGATED;
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.PARTITION_KEY;
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.REGULAR;
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.SYNTHESIZED;
 import static com.facebook.presto.hive.HiveColumnHandle.PATH_COLUMN_NAME;
+import static com.facebook.presto.hive.HiveColumnHandle.PUSHDOWN_AGGREGATION_COLUMN_INDEX;
 import static com.facebook.presto.hive.HiveColumnHandle.updateRowIdHandle;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_COLUMN_ORDER_MISMATCH;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_CONCURRENT_MODIFICATION_DETECTED;
@@ -182,6 +187,7 @@ import static com.facebook.presto.spi.StandardErrorCode.INVALID_SCHEMA_PROPERTY;
 import static com.facebook.presto.spi.StandardErrorCode.INVALID_TABLE_PROPERTY;
 import static com.facebook.presto.spi.StandardErrorCode.NOT_SUPPORTED;
 import static com.facebook.presto.spi.StandardErrorCode.SCHEMA_NOT_EMPTY;
+import static com.facebook.presto.spi.pipeline.AggregationPipelineNode.NodeType.AGGREGATE;
 import static com.facebook.presto.spi.predicate.TupleDomain.withColumnDomains;
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -213,6 +219,8 @@ public class HiveMetadata
 
     private static final String PARTITIONS_TABLE_SUFFIX = "$partitions";
     public static final String AVRO_SCHEMA_URL_KEY = "avro.schema.url";
+
+    private static final Set<String> SUPPORTED_PUSHDOWN_AGGREGATIONS = ImmutableSet.of("count");
 
     private final boolean allowCorruptWritesForTesting;
     private final SemiTransactionalHiveMetastore metastore;
@@ -1487,7 +1495,8 @@ public class HiveMetadata
                                 hivePartitionResult.getCompactEffectivePredicate(),
                                 hivePartitionResult.getEnforcedConstraint(),
                                 hivePartitionResult.getBucketHandle(),
-                                hivePartitionResult.getBucketFilter())),
+                                hivePartitionResult.getBucketFilter(),
+                                Optional.empty())),
                 hivePartitionResult.getUnenforcedConstraint()));
     }
 
@@ -1611,7 +1620,8 @@ public class HiveMetadata
                 hiveLayoutHandle.getCompactEffectivePredicate(),
                 hiveLayoutHandle.getPromisedPredicate(),
                 Optional.of(new HiveBucketHandle(bucketHandle.getColumns(), bucketHandle.getTableBucketCount(), hivePartitioningHandle.getBucketCount())),
-                hiveLayoutHandle.getBucketFilter());
+                hiveLayoutHandle.getBucketFilter(),
+                Optional.empty());
     }
 
     @VisibleForTesting
@@ -1800,6 +1810,87 @@ public class HiveMetadata
                             Optional.empty())); // Can't access withHierarchy
         }
         return grantInfos.build();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushPartialAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, AggregationPipelineNode aggregations)
+    {
+        if (currentPipeline.isPresent()) {
+            // Hive only support pushdown of one aggregation node. If there is already a pipeline, then there is already an aggregation pushed into the table scan
+            return Optional.empty();
+        }
+
+        ConnectorTableMetadata tableMetadata = getTableMetadata(session, connectorTableHandle);
+        final HiveStorageFormat storageFormat = HiveStorageFormat.valueOf(tableMetadata.getProperties().get(STORAGE_FORMAT_PROPERTY).toString());
+        if (storageFormat != HiveStorageFormat.ORC) {
+            // Parquet can also support partial aggregation pushdown, for now just add ORC support
+            return Optional.empty();
+        }
+
+        /**
+         * Aggregation push downs are supported only on primitive types and supported aggregation functions are:
+         * count(*), count(columnName).
+         */
+        for (AggregationPipelineNode.Node node : aggregations.getNodes()) {
+            if (node.getNodeType() != AGGREGATE) {
+                return Optional.empty();
+            }
+
+            Aggregation aggregation = (Aggregation) node;
+
+            List<String> inputColumnNames = aggregation.getInputs();
+            if (inputColumnNames.size() > 1) {
+                return Optional.empty();
+            }
+
+            if (inputColumnNames.isEmpty()) {
+                if ("count".equalsIgnoreCase(aggregation.getFunction())) {
+                    continue;
+                }
+
+                return Optional.empty();
+            }
+
+            if (!SUPPORTED_PUSHDOWN_AGGREGATIONS.contains(aggregation.getFunction())) {
+                return Optional.empty();
+            }
+        }
+
+        // Create new output ColumnHandles.
+        List<ColumnHandle> outputColumnHandles = new ArrayList<>();
+        for (AggregationPipelineNode.Node aggregation : aggregations.getNodes()) {
+            HiveType hiveType = HiveType.toHiveType(typeTranslator, aggregation.getOutputType());
+            outputColumnHandles.add(new HiveColumnHandle(
+                    aggregation.getOutputColumn(),
+                    hiveType,
+                    hiveType.getTypeSignature(),
+                    PUSHDOWN_AGGREGATION_COLUMN_INDEX,
+                    AGGREGATED,
+                    Optional.of("column for pushed down expression")));
+        }
+
+        TableScanPipeline pipeline = new TableScanPipeline();
+        pipeline.addPipeline(aggregations, outputColumnHandles);
+
+        return Optional.of(pipeline);
+    }
+
+    @Override
+    public Optional<ConnectorTableLayoutHandle> pushTableScanIntoConnectorLayoutHandle(ConnectorSession session, TableScanPipeline scanPipeline,
+            ConnectorTableLayoutHandle connectorTableLayoutHandle)
+    {
+        HiveTableLayoutHandle currentHandle = (HiveTableLayoutHandle) connectorTableLayoutHandle;
+        checkArgument(!currentHandle.getScanPipeline().isPresent(), "layout already has a scan pipeline");
+        return Optional.of(new HiveTableLayoutHandle(
+                currentHandle.getSchemaTableName(),
+                currentHandle.getPartitionColumns(),
+                currentHandle.getPartitions().get(),
+                currentHandle.getCompactEffectivePredicate(),
+                currentHandle.getPromisedPredicate(),
+                currentHandle.getBucketHandle(),
+                currentHandle.getBucketFilter(),
+                Optional.of(scanPipeline)));
     }
 
     private void verifyJvmTimeZone()

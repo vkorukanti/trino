@@ -377,6 +377,7 @@ class HiveSplitSource
                         (TupleDomain<HiveColumnHandle>) compactEffectivePredicate,
                         transformValues(internalSplit.getColumnCoercions(), HiveTypeName::toHiveType),
                         internalSplit.getBucketConversion(),
+                        internalSplit.getScanPipeline(),
                         internalSplit.isS3SelectPushdownEnabled()));
 
                 internalSplit.increaseStart(splitBytes);

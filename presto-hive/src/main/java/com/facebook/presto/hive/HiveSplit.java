@@ -15,6 +15,7 @@ package com.facebook.presto.hive;
 
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -50,6 +51,7 @@ public class HiveSplit
     private final boolean forceLocalScheduling;
     private final Map<Integer, HiveType> columnCoercions; // key: hiveColumnIndex
     private final Optional<BucketConversion> bucketConversion;
+    private final Optional<TableScanPipeline> scanPipeline;
     private final boolean s3SelectPushdownEnabled;
 
     @JsonCreator
@@ -69,6 +71,7 @@ public class HiveSplit
             @JsonProperty("effectivePredicate") TupleDomain<HiveColumnHandle> effectivePredicate,
             @JsonProperty("columnCoercions") Map<Integer, HiveType> columnCoercions,
             @JsonProperty("bucketConversion") Optional<BucketConversion> bucketConversion,
+            @JsonProperty("scanPipeline") Optional<TableScanPipeline> scanPipeline,
             @JsonProperty("s3SelectPushdownEnabled") boolean s3SelectPushdownEnabled)
     {
         checkArgument(start >= 0, "start must be positive");
@@ -85,6 +88,7 @@ public class HiveSplit
         requireNonNull(effectivePredicate, "tupleDomain is null");
         requireNonNull(columnCoercions, "columnCoercions is null");
         requireNonNull(bucketConversion, "bucketConversion is null");
+        requireNonNull(scanPipeline, "scanPipeline is null");
 
         this.database = database;
         this.table = table;
@@ -101,6 +105,7 @@ public class HiveSplit
         this.effectivePredicate = effectivePredicate;
         this.columnCoercions = columnCoercions;
         this.bucketConversion = bucketConversion;
+        this.scanPipeline = scanPipeline;
         this.s3SelectPushdownEnabled = s3SelectPushdownEnabled;
     }
 
@@ -202,6 +207,12 @@ public class HiveSplit
     }
 
     @JsonProperty
+    public Optional<TableScanPipeline> getScanPipeline()
+    {
+        return scanPipeline;
+    }
+
+    @JsonProperty
     public boolean isS3SelectPushdownEnabled()
     {
         return s3SelectPushdownEnabled;
@@ -220,6 +231,7 @@ public class HiveSplit
                 .put("table", table)
                 .put("forceLocalScheduling", forceLocalScheduling)
                 .put("partitionName", partitionName)
+                .put("scanPipeline", scanPipeline)
                 .put("s3SelectPushdownEnabled", s3SelectPushdownEnabled)
                 .build();
     }
@@ -233,6 +245,7 @@ public class HiveSplit
                 .addValue(length)
                 .addValue(fileSize)
                 .addValue(effectivePredicate)
+                .addValue(scanPipeline)
                 .addValue(s3SelectPushdownEnabled)
                 .toString();
     }

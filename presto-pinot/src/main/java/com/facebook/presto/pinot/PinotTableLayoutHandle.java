@@ -14,11 +14,10 @@
 package com.facebook.presto.pinot;
 
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -26,15 +25,15 @@ public class PinotTableLayoutHandle
         implements ConnectorTableLayoutHandle
 {
     private final PinotTableHandle table;
-    private final Optional<Map<String, List<String>>> aggregations;
+    private final Optional<TableScanPipeline> scanPipeline;
 
     @JsonCreator
     public PinotTableLayoutHandle(
             @JsonProperty("table") PinotTableHandle table,
-            @JsonProperty("aggregations") Optional<Map<String, List<String>>> aggregations)
+            @JsonProperty("scanPipeline") Optional<TableScanPipeline> scanPipeline)
     {
         this.table = table;
-        this.aggregations = aggregations;
+        this.scanPipeline = scanPipeline;
     }
 
     @JsonProperty
@@ -44,9 +43,9 @@ public class PinotTableLayoutHandle
     }
 
     @JsonProperty
-    public Optional<Map<String, List<String>>> getAggregations()
+    public Optional<TableScanPipeline> getScanPipeline()
     {
-        return aggregations;
+        return scanPipeline;
     }
 
     @Override
@@ -59,18 +58,24 @@ public class PinotTableLayoutHandle
             return false;
         }
         PinotTableLayoutHandle that = (PinotTableLayoutHandle) o;
-        return Objects.equals(table, that.table);
+        return Objects.equals(table, that.table) && Objects.equals(scanPipeline, that.scanPipeline);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(table);
+        return Objects.hash(table, scanPipeline);
     }
 
     @Override
     public String toString()
     {
-        return table.toString();
+        StringBuilder result = new StringBuilder();
+        result.append(table.toString());
+        if (scanPipeline.isPresent()) {
+            result.append(", pql=").append(PinotPushdownQueryGenerator.generate(scanPipeline.get()));
+            result.append(", scanPipeline=").append(scanPipeline.get().toString());
+        }
+        return result.toString();
     }
 }

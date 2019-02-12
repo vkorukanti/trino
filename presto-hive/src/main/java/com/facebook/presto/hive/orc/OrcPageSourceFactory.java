@@ -31,6 +31,7 @@ import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.FixedPageSource;
 import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
@@ -107,6 +108,7 @@ public class OrcPageSourceFactory
             Properties schema,
             List<HiveColumnHandle> columns,
             TupleDomain<HiveColumnHandle> effectivePredicate,
+            Optional<TableScanPipeline> scanPipeline,
             DateTimeZone hiveStorageTimeZone)
     {
         if (!isDeserializerClass(schema, OrcSerde.class)) {
@@ -130,6 +132,7 @@ public class OrcPageSourceFactory
                 columns,
                 useOrcColumnNames,
                 effectivePredicate,
+                scanPipeline,
                 hiveStorageTimeZone,
                 typeManager,
                 getOrcMaxMergeDistance(session),
@@ -142,7 +145,7 @@ public class OrcPageSourceFactory
                 stats));
     }
 
-    public static OrcPageSource createOrcPageSource(
+    public static ConnectorPageSource createOrcPageSource(
             OrcEncoding orcEncoding,
             HdfsEnvironment hdfsEnvironment,
             String sessionUser,
@@ -154,6 +157,7 @@ public class OrcPageSourceFactory
             List<HiveColumnHandle> columns,
             boolean useOrcColumnNames,
             TupleDomain<HiveColumnHandle> effectivePredicate,
+            Optional<TableScanPipeline> scanPipeline,
             DateTimeZone hiveStorageTimeZone,
             TypeManager typeManager,
             DataSize maxMergeDistance,
@@ -200,6 +204,10 @@ public class OrcPageSourceFactory
                     includedColumns.put(column.getHiveColumnIndex(), type);
                     columnReferences.add(new ColumnReference<>(column, column.getHiveColumnIndex(), type));
                 }
+            }
+
+            if (scanPipeline.isPresent()) {
+                return new AggregationOrcPageSource(scanPipeline.get(), reader.getFooter(), orcDataSource, typeManager, systemMemoryUsage);
             }
 
             OrcPredicate predicate = new TupleDomainOrcPredicate<>(effectivePredicate, columnReferences.build(), orcBloomFiltersEnabled);

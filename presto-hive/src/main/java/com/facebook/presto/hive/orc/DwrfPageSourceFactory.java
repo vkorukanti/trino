@@ -21,6 +21,7 @@ import com.facebook.presto.hive.HivePageSourceFactory;
 import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.PrestoException;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.TypeManager;
 import org.apache.hadoop.conf.Configuration;
@@ -70,6 +71,7 @@ public class DwrfPageSourceFactory
             Properties schema,
             List<HiveColumnHandle> columns,
             TupleDomain<HiveColumnHandle> effectivePredicate,
+            Optional<TableScanPipeline> scanPipeline,
             DateTimeZone hiveStorageTimeZone)
     {
         if (!isDeserializerClass(schema, OrcSerde.class)) {
@@ -92,6 +94,7 @@ public class DwrfPageSourceFactory
                 columns,
                 false,
                 effectivePredicate,
+                scanPipeline,
                 hiveStorageTimeZone,
                 typeManager,
                 getOrcMaxMergeDistance(session),

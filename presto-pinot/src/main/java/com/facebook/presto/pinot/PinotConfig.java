@@ -42,7 +42,9 @@ public class PinotConfig
     private String zkUrl;
     private String pinotCluster;
     private String pinotClusterEnv = DEFAULT_PINOT_CLUSTER_ENV;
+    private String proxyRestService;
     private String controllerUrl;
+    private String restProxyUrl;
 
     private long limitAll = DEFAULT_LIMIT_ALL;
     private long limitLarge = DEFAULT_LIMIT_LARGE;
@@ -117,20 +119,28 @@ public class PinotConfig
     }
 
     @NotNull
-    public boolean getIsAggregationPushdownEnabled()
+    public String getProxyRestUrl()
     {
-        return isAggregationPushdownEnabled;
+        return restProxyUrl;
     }
 
-    @Config("aggregation-pushdown.enabled")
-    public PinotConfig setIsAggregationPushdownEnabled(String isAggregationPushdownEnabled)
+    @Config("proxy-rest-url")
+    public PinotConfig setProxyRestUrl(String restProxyUrl)
     {
-        try {
-            this.isAggregationPushdownEnabled = Boolean.valueOf(isAggregationPushdownEnabled);
-        }
-        catch (Exception e) {
-            this.isAggregationPushdownEnabled = DEFAULT_IS_AGGREGATION_PUSHDOWN_ENABLED;
-        }
+        this.restProxyUrl = restProxyUrl;
+        return this;
+    }
+
+    @NotNull
+    public String getProxyRestService()
+    {
+        return proxyRestService;
+    }
+
+    @Config("proxy-rest-service")
+    public PinotConfig setProxyRestService(String proxyRestService)
+    {
+        this.proxyRestService = proxyRestService;
         return this;
     }
 

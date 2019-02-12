@@ -15,54 +15,46 @@ package com.facebook.presto.pinot;
 
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.airlift.log.Logger;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
 public class PinotSplit
         implements ConnectorSplit
 {
-    private static final Logger log = Logger.get(PinotSplit.class);
     private final String connectorId;
-    private final String tableName;
-    private final String host;
-    private final String segment;
-    private final boolean remotelyAccessible;
-    private final List<HostAddress> addresses;
-    private final PinotColumn timeColumn;
-    private final String timeFilter;
-    private final String pinotFilter;
-    private final long limit;
-    private final Map<String, List<String>> columnAggregationMap;
+    private final Optional<String> tableName;
+    private final Optional<String> host;
+    private final Optional<String> segment;
+    private final Optional<String> timeFilter;
+    private final Optional<String> pinotFilter;
+    private final Optional<Long> limit;
+    private final Optional<TableScanPipeline> scanPipeline;
 
     @JsonCreator
     public PinotSplit(
             @JsonProperty("connectorId") String connectorId,
-            @JsonProperty("tableName") String tableName,
-            @JsonProperty("host") String host,
-            @JsonProperty("segment") String segment,
-            @JsonProperty("timeColumn") PinotColumn timeColumn,
-            @JsonProperty("timeFilter") String timeFilter,
-            @JsonProperty("pinotFilter") String pinotFilter,
-            @JsonProperty("limit") long limit,
-            @JsonProperty("aggregations") Map<String, List<String>> aggregations)
+            @JsonProperty("tableName") Optional<String> tableName,
+            @JsonProperty("host") Optional<String> host,
+            @JsonProperty("segment") Optional<String> segment,
+            @JsonProperty("timeFilter") Optional<String> timeFilter,
+            @JsonProperty("pinotFilter") Optional<String> pinotFilter,
+            @JsonProperty("limit") Optional<Long> limit,
+            @JsonProperty("scanPipeline") Optional<TableScanPipeline> scanPipeline)
     {
         this.connectorId = requireNonNull(connectorId, "connector id is null");
         this.tableName = requireNonNull(tableName, "table name is null");
         this.host = requireNonNull(host, "host is null");
         this.segment = requireNonNull(segment, "segment is null");
-        this.timeColumn = requireNonNull(timeColumn, "timeColumn is null");
-        this.addresses = null;
         this.pinotFilter = pinotFilter;
         this.timeFilter = timeFilter;
         this.limit = limit;
-        this.remotelyAccessible = true;
-        this.columnAggregationMap = aggregations;
+        this.scanPipeline = requireNonNull(scanPipeline, "scanPipeline is null");
     }
 
     @JsonProperty
@@ -72,69 +64,62 @@ public class PinotSplit
     }
 
     @JsonProperty
-    public String getTableName()
+    public Optional<String> getTableName()
     {
         return tableName;
     }
 
     @JsonProperty
-    public String getHost()
+    public Optional<String> getHost()
     {
         return host;
     }
 
     @JsonProperty
-    public String getSegment()
+    public Optional<String> getSegment()
     {
         return segment;
     }
 
     @JsonProperty
-    public PinotColumn getTimeColumn()
-    {
-        return timeColumn;
-    }
-
-    @JsonProperty
-    public String getTimeFilter()
+    public Optional<String> getTimeFilter()
     {
         return timeFilter;
     }
 
     @JsonProperty
-    public String getPinotFilter()
+    public Optional<String> getPinotFilter()
     {
         return pinotFilter;
     }
 
     @JsonProperty
-    public long getLimit()
+    public Optional<Long> getLimit()
     {
         return limit;
+    }
+
+    @JsonProperty
+    public Optional<TableScanPipeline> getScanPipeline()
+    {
+        return scanPipeline;
     }
 
     @Override
     public boolean isRemotelyAccessible()
     {
-        // only http or https is remotely accessible
-        return remotelyAccessible;
+        return true;
     }
 
     @Override
     public List<HostAddress> getAddresses()
     {
-        return addresses;
+        return null;
     }
 
     @Override
     public Object getInfo()
     {
         return this;
-    }
-
-    @JsonProperty
-    public Map<String, List<String>> getAggregations()
-    {
-        return columnAggregationMap;
     }
 }

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static com.facebook.presto.pinot.PinotColumnHandle.PinotColumnType.REGULAR;
 import static com.facebook.presto.pinot.PinotQueryGenerator.getPinotQuery;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
@@ -36,42 +37,28 @@ public class PinotQueryGeneratorTest
     @BeforeTest
     void init()
     {
-        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "varchar", VARCHAR, 0, Optional.empty()));
-        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "int", INTEGER, 1, Optional.empty()));
-        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "secondsSinceEpoch", BIGINT, 2, Optional.empty()));
-        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "boolean", BOOLEAN, 3, Optional.empty()));
-        columnHandlesNoAgg.add(new PinotColumnHandle("pinot", "double", DOUBLE, 4, Optional.empty()));
+        columnHandlesNoAgg.add(new PinotColumnHandle("varchar", VARCHAR, REGULAR));
+        columnHandlesNoAgg.add(new PinotColumnHandle("int", INTEGER, REGULAR));
+        columnHandlesNoAgg.add(new PinotColumnHandle("secondsSinceEpoch", BIGINT, REGULAR));
+        columnHandlesNoAgg.add(new PinotColumnHandle("boolean", BOOLEAN, REGULAR));
+        columnHandlesNoAgg.add(new PinotColumnHandle("double", DOUBLE, REGULAR));
 
-        columnHandlesWithAgg.add(new PinotColumnHandle("pinot", "varchar", VARCHAR, 0, Optional.of("count")));
-        columnHandlesWithAgg.add(new PinotColumnHandle("pinot", "int", INTEGER, 1, Optional.of("max")));
-        columnHandlesWithAgg.add(new PinotColumnHandle("pinot", "boolean", INTEGER, 1, Optional.empty()));
+        columnHandlesWithAgg.add(new PinotColumnHandle("varchar", VARCHAR, REGULAR));
+        columnHandlesWithAgg.add(new PinotColumnHandle("int", INTEGER, REGULAR));
+        columnHandlesWithAgg.add(new PinotColumnHandle("boolean", INTEGER, REGULAR));
     }
 
     @Test
     public void testGetPinotQuerySelectAll()
     {
         String expectedQuery = "SELECT varchar, int, secondsSinceEpoch, boolean, double FROM table  LIMIT 10";
-        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesNoAgg, false, "", "", "table", 10));
+        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesNoAgg, "", "", "table", Optional.of(10L)));
     }
 
     @Test
     public void testGetPinotQueryWithPredicate()
     {
         String expectedQuery = "SELECT varchar, int, secondsSinceEpoch, boolean, double FROM table WHERE ((int > 3)) AND ((secondsSinceEpoch > 10000)) LIMIT 10";
-        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesNoAgg, false, "(int > 3)", "(secondsSinceEpoch > 10000)", "table", 10));
-    }
-
-    @Test
-    public void testGetPinotQueryWithAggregationDisabled()
-    {
-        String expectedQuery = "SELECT varchar, int, boolean FROM table WHERE ((int > 3)) AND ((secondsSinceEpoch > 10000)) LIMIT 10";
-        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesWithAgg, false, "(int > 3)", "(secondsSinceEpoch > 10000)", "table", 10));
-    }
-
-    @Test
-    public void testGetPinotQueryWithAggregation()
-    {
-        String expectedQuery = "SELECT count(varchar), max(int) FROM table WHERE ((int > 3)) AND ((secondsSinceEpoch > 10000)) LIMIT 10";
-        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesWithAgg, true, "(int > 3)", "(secondsSinceEpoch > 10000)", "table", 10));
+        Assert.assertEquals(expectedQuery, getPinotQuery(new PinotConfig(), columnHandlesNoAgg, "(int > 3)", "(secondsSinceEpoch > 10000)", "table", Optional.of(10L)));
     }
 }

@@ -23,6 +23,10 @@ import com.facebook.presto.spi.Constraint;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
 import com.facebook.presto.spi.security.Privilege;
@@ -425,6 +429,36 @@ public abstract class AbstractMockMetadata
 
     @Override
     public boolean catalogExists(Session session, String catalogName)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushProjectIntoScan(Session session, TableHandle tableHandle, Optional<TableScanPipeline> existingPipeline, ProjectPipelineNode projectPipelineNode)
+    {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushFilterIntoScan(Session session, TableHandle tableHandle, Optional<TableScanPipeline> existingPipeline, FilterPipelineNode filterPipelineNode)
+    {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushAggregationsIntoScan(Session session, TableHandle tableHandle, Optional<TableScanPipeline> existingPipeline, AggregationPipelineNode aggregations)
+    {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushPartialAggregationsIntoScan(Session session, TableHandle tableHandle, Optional<TableScanPipeline> existingPipeline, AggregationPipelineNode aggregations)
+    {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<TableLayoutHandle> pushTableScanIntoConnectorTableLayout(Session session, TableLayoutHandle tableLayoutHandle, TableScanPipeline scanPipeline)
     {
         throw new UnsupportedOperationException();
     }

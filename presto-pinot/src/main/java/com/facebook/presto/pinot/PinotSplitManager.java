@@ -39,7 +39,6 @@ import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,12 +73,17 @@ public class PinotSplitManager
             ConnectorTableLayoutHandle layout,
             SplitSchedulingStrategy splitSchedulingStrategy)
     {
-        PinotTableLayoutHandle layoutHandle = checkType(layout, PinotTableLayoutHandle.class, "layout");
-        PinotTableHandle tableHandle = layoutHandle.getTable();
+        PinotTableLayoutHandle pinotLayoutHandle = checkType(layout, PinotTableLayoutHandle.class, "layout");
+        PinotTableHandle tableHandle = pinotLayoutHandle.getTable();
         PinotTable table = null;
         PinotColumn timeColumn = null;
         Map<String, Map<String, List<String>>> routingTable = null;
         Map<String, String> timeBoundary = null;
+
+        if (pinotLayoutHandle.getScanPipeline().isPresent()) {
+            return getSplitsForScanPipeline(pinotLayoutHandle);
+        }
+
         try {
             table = pinotPrestoConnection.getTable(tableHandle.getTableName());
             timeColumn = pinotPrestoConnection.getPinotTimeColumnForTable(tableHandle.getTableName());
@@ -95,14 +99,28 @@ public class PinotSplitManager
 
         List<ConnectorSplit> splits = new ArrayList<>();
         if (!routingTable.isEmpty()) {
-            setSplits(splits, timeColumn, routingTable, timeBoundary, getOfflineTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary(), Optional.empty(), Optional.empty());
-            setSplits(splits, timeColumn, routingTable, timeBoundary, getRealtimeTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary(), Optional.empty(), Optional.empty());
+            setSplits(splits, timeColumn, routingTable, timeBoundary, getOfflineTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary());
+            setSplits(splits, timeColumn, routingTable, timeBoundary, getRealtimeTableName(tableHandle.getTableName()), tableHandle.getConstraintSummary());
         }
 
         Collections.shuffle(splits);
         log.debug("PinotSplits is %s", Arrays.toString(splits.toArray()));
 
         return new FixedSplitSource(splits);
+    }
+
+    private ConnectorSplitSource getSplitsForScanPipeline(PinotTableLayoutHandle tableLayout)
+    {
+        return new FixedSplitSource(Collections.singletonList(
+                new PinotSplit(
+                        connectorId,
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        tableLayout.getScanPipeline())));
     }
 
     private String getTimePredicate(String type, String timeColumn, String maxTimeStamp)
@@ -116,18 +134,12 @@ public class PinotSplitManager
         return null;
     }
 
-    private void setSplits(List<ConnectorSplit> splits, PinotColumn timeColumn, Map<String, Map<String, List<String>>> routingTable, Map<String, String> timeBoundary, String tableName, TupleDomain<ColumnHandle> constraintSummary, Optional<Long> optionalLimit, Optional<Map<String, List<String>>> optionalAggregations)
+    private void setSplits(List<ConnectorSplit> splits, PinotColumn timeColumn, Map<String, Map<String, List<String>>> routingTable, Map<String, String> timeBoundary,
+            String tableName, TupleDomain<ColumnHandle> constraintSummary)
     {
         String pinotFilter = getPinotPredicate(constraintSummary);
         String timeFilter = "";
-        long limit = -1;
-        if (optionalLimit.isPresent()) {
-            limit = optionalLimit.get();
-        }
-        Map<String, List<String>> aggregations = new HashMap<>();
-        if (optionalAggregations.isPresent()) {
-            aggregations = optionalAggregations.get();
-        }
+
         if (timeBoundary.containsKey("timeColumnName") && timeBoundary.containsKey("timeColumnValue")) {
             timeFilter = getTimePredicate(getTableType(tableName), timeBoundary.get("timeColumnName"), timeBoundary.get("timeColumnValue"));
         }
@@ -136,7 +148,15 @@ public class PinotSplitManager
                 Map<String, List<String>> hostToSegmentsMap = routingTable.get(routingTableName);
                 for (String host : hostToSegmentsMap.keySet()) {
                     for (String segment : hostToSegmentsMap.get(host)) {
-                        splits.add(new PinotSplit(connectorId, routingTableName, host, segment, timeColumn, timeFilter, pinotFilter, limit, aggregations));
+                        splits.add(new PinotSplit(
+                                connectorId,
+                                Optional.of(routingTableName),
+                                Optional.of(host),
+                                Optional.of(segment),
+                                Optional.of(timeFilter),
+                                Optional.of(pinotFilter),
+                                Optional.empty(),
+                                Optional.empty()));
                     }
                 }
             }

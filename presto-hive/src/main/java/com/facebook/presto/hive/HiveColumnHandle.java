@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Objects;
 import java.util.Optional;
 
+import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.AGGREGATED;
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.PARTITION_KEY;
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.SYNTHESIZED;
 import static com.facebook.presto.hive.HiveType.HIVE_INT;
@@ -45,6 +46,8 @@ public class HiveColumnHandle
     public static final HiveType BUCKET_HIVE_TYPE = HIVE_INT;
     public static final TypeSignature BUCKET_TYPE_SIGNATURE = BUCKET_HIVE_TYPE.getTypeSignature();
 
+    public static final int PUSHDOWN_AGGREGATION_COLUMN_INDEX = -13;
+
     private static final String UPDATE_ROW_ID_COLUMN_NAME = "$shard_row_id";
 
     public enum ColumnType
@@ -52,6 +55,7 @@ public class HiveColumnHandle
         PARTITION_KEY,
         REGULAR,
         SYNTHESIZED,
+        AGGREGATED,
     }
 
     private final String name;
@@ -71,7 +75,7 @@ public class HiveColumnHandle
             @JsonProperty("comment") Optional<String> comment)
     {
         this.name = requireNonNull(name, "name is null");
-        checkArgument(hiveColumnIndex >= 0 || columnType == PARTITION_KEY || columnType == SYNTHESIZED, "hiveColumnIndex is negative");
+        checkArgument(hiveColumnIndex >= 0 || columnType == PARTITION_KEY || columnType == SYNTHESIZED || columnType == AGGREGATED, "hiveColumnIndex is negative");
         this.hiveColumnIndex = hiveColumnIndex;
         this.hiveType = requireNonNull(hiveType, "hiveType is null");
         this.typeName = requireNonNull(typeSignature, "type is null");
@@ -105,6 +109,11 @@ public class HiveColumnHandle
     public boolean isHidden()
     {
         return columnType == SYNTHESIZED;
+    }
+
+    public boolean isAggregated()
+    {
+        return columnType == AGGREGATED;
     }
 
     public ColumnMetadata getColumnMetadata(TypeManager typeManager)
@@ -193,5 +202,10 @@ public class HiveColumnHandle
     public static boolean isBucketColumnHandle(HiveColumnHandle column)
     {
         return column.getHiveColumnIndex() == BUCKET_COLUMN_INDEX;
+    }
+
+    public static boolean isAggregateColumnHandle(HiveColumnHandle column)
+    {
+        return column.getColumnType() == AGGREGATED;
     }
 }

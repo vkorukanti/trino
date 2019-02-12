@@ -31,6 +31,10 @@ import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.SystemTable;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
 import com.facebook.presto.spi.security.Privilege;
@@ -467,5 +471,51 @@ public interface ConnectorMetadata
     default List<GrantInfo> listTablePrivileges(ConnectorSession session, SchemaTablePrefix prefix)
     {
         return emptyList();
+    }
+
+    /**
+     * Push project expressions into table scan. This pushdown is applied on top of the existing pushdowns already applied on table scan.
+     * Returns the new scan pipeline or empty if the connector doesn't support project pushdown or any specific expressions in project.
+     */
+    default Optional<TableScanPipeline> pushProjectIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, ProjectPipelineNode project)
+    {
+        return Optional.empty();
+    }
+
+    /**
+     * Push filter expressions into table scan. This pushdown is applied on top of the existing pushdowns already applied on table scan.
+     * Returns the new scan pipeline or empty if the connector doesn't support filter pushdown or any specific expressions in filter.
+     */
+    default Optional<TableScanPipeline> pushFilterIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, FilterPipelineNode filter)
+    {
+        return Optional.empty();
+    }
+
+    /**
+     * Push complete aggregation operation into table scan. This pushdown is applied on top of the existing pushdowns already applied on table scan.
+     * Returns the new scan pipeline or empty if the connector doesn't support aggregation pushdowns or any specific aggregation functions.
+     */
+    default Optional<TableScanPipeline> pushAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, AggregationPipelineNode aggregations)
+    {
+        return Optional.empty();
+    }
+
+    /**
+     * Push partial aggregation operation into table scan. This pushdown is applied on top of the existing pushdowns already applied on table scan.
+     * Returns the new scan pipeline or empty if the connector doesn't support partial aggregation pushdowns or any specific aggregation functions.
+     */
+    default Optional<TableScanPipeline> pushPartialAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, AggregationPipelineNode aggregations)
+    {
+        return Optional.empty();
+    }
+
+    default Optional<ConnectorTableLayoutHandle> pushTableScanIntoConnectorLayoutHandle(ConnectorSession session, TableScanPipeline scanPipeline,
+            ConnectorTableLayoutHandle connectorTableLayoutHandle)
+    {
+        return Optional.empty();
     }
 }

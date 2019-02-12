@@ -28,6 +28,7 @@ import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SchemaTableName;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
@@ -97,6 +98,7 @@ public class BackgroundHiveSplitLoader
     private final Table table;
     private final TupleDomain<? extends ColumnHandle> compactEffectivePredicate;
     private final Optional<BucketSplitInfo> tableBucketInfo;
+    private final Optional<TableScanPipeline> scanPipeline;
     private final HdfsEnvironment hdfsEnvironment;
     private final HdfsContext hdfsContext;
     private final NamenodeStats namenodeStats;
@@ -133,6 +135,7 @@ public class BackgroundHiveSplitLoader
             Iterable<HivePartitionMetadata> partitions,
             TupleDomain<? extends ColumnHandle> compactEffectivePredicate,
             Optional<BucketSplitInfo> tableBucketInfo,
+            Optional<TableScanPipeline> scanPipeline,
             ConnectorSession session,
             HdfsEnvironment hdfsEnvironment,
             NamenodeStats namenodeStats,
@@ -144,6 +147,7 @@ public class BackgroundHiveSplitLoader
         this.table = table;
         this.compactEffectivePredicate = compactEffectivePredicate;
         this.tableBucketInfo = tableBucketInfo;
+        this.scanPipeline = scanPipeline;
         this.loaderConcurrency = loaderConcurrency;
         this.session = session;
         this.hdfsEnvironment = hdfsEnvironment;
@@ -312,6 +316,7 @@ public class BackgroundHiveSplitLoader
                         partition.getColumnCoercions(),
                         Optional.empty(),
                         isForceLocalScheduling(session),
+                        scanPipeline,
                         s3SelectPushdownEnabled);
                 lastResult = addSplitsToSource(targetSplits, splitFactory);
                 if (stopped) {
@@ -348,6 +353,7 @@ public class BackgroundHiveSplitLoader
                 partition.getColumnCoercions(),
                 bucketConversionRequiresWorkerParticipation ? bucketConversion : Optional.empty(),
                 isForceLocalScheduling(session),
+                scanPipeline,
                 s3SelectPushdownEnabled);
 
         // To support custom input formats, we want to call getSplits()

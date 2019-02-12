@@ -16,6 +16,7 @@ package com.facebook.presto.pinot;
 import io.airlift.log.Logger;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.StringJoiner;
 
 import static java.util.Objects.requireNonNull;
@@ -25,12 +26,6 @@ import static java.util.Objects.requireNonNull;
  */
 public final class PinotQueryGenerator
 {
-    private static final Logger log = Logger.get(PinotQueryGenerator.class);
-
-    private PinotQueryGenerator()
-    {
-    }
-
     /**
      * QUERY_TEMPLATE looks like this:
      * SELECT $fields FROM $tableName $predicate LIMIT $limit.
@@ -39,7 +34,11 @@ public final class PinotQueryGenerator
      * When $predicate is absent, there would be 2 spaces between $tableName and LIMIT, which is should not hurt the query itself.
      */
     public static final String QUERY_TEMPLATE = "SELECT %s FROM %s %s LIMIT %d";
-    public static final String FIELD_AGGREGATION_TEMPLATE = "%s(%s)"; // $aggregator($field), e.g. max(fare)
+    private static final Logger log = Logger.get(PinotQueryGenerator.class);
+
+    private PinotQueryGenerator()
+    {
+    }
 
     /**
      * Returns the Pinot Query to send for each split.
@@ -49,20 +48,12 @@ public final class PinotQueryGenerator
      *
      * @return the constructed Pinot Query
      */
-    static String getPinotQuery(PinotConfig pinotConfig, List<PinotColumnHandle> columnHandles, boolean shouldPushAggregation, String pinotFilter, String timeFilter, String tableName, long splitLimit)
+    static String getPinotQuery(PinotConfig pinotConfig, List<PinotColumnHandle> columnHandles, String pinotFilter, String timeFilter, String tableName, Optional<Long> splitLimit)
     {
         requireNonNull(pinotConfig, "pinotConfig is null");
         StringJoiner fieldsJoiner = new StringJoiner(", ");
         for (PinotColumnHandle columnHandle : columnHandles) {
-            // No aggregation pushdown
-            if (!shouldPushAggregation) {
-                fieldsJoiner.add(columnHandle.getColumnName());
-            }
-            else if (columnHandle.getAggregationType().isPresent()) {
-                // Add columns for aggregation pushdown
-                String field = String.format(FIELD_AGGREGATION_TEMPLATE, columnHandle.getAggregationType().get(), columnHandle.getColumnName());
-                fieldsJoiner.add(field);
-            }
+            fieldsJoiner.add(columnHandle.getColumnName());
         }
 
         // Add predicates
@@ -80,7 +71,7 @@ public final class PinotQueryGenerator
             pinotPredicate = "WHERE " + predicatesJoiner.toString();
         }
 
-        long limit = splitLimit > 0 ? splitLimit : pinotConfig.getLimitAll();
+        long limit = splitLimit.isPresent() ? splitLimit.get() : pinotConfig.getLimitAll();
 
         final String finalQuery = String.format(QUERY_TEMPLATE, fieldsJoiner.toString(), tableName, pinotPredicate, limit);
         log.debug("Plan to send PQL : %s", finalQuery);

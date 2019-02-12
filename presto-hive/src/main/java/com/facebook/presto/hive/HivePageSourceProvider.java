@@ -23,6 +23,7 @@ import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.RecordPageSource;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeManager;
@@ -42,6 +43,7 @@ import java.util.OptionalInt;
 import java.util.Properties;
 import java.util.Set;
 
+import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.AGGREGATED;
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.PARTITION_KEY;
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.REGULAR;
 import static com.facebook.presto.hive.HiveColumnHandle.ColumnType.SYNTHESIZED;
@@ -80,43 +82,6 @@ public class HivePageSourceProvider
         this.typeManager = requireNonNull(typeManager, "typeManager is null");
     }
 
-    @Override
-    public ConnectorPageSource createPageSource(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorSplit split, List<ColumnHandle> columns)
-    {
-        List<HiveColumnHandle> hiveColumns = columns.stream()
-                .map(HiveColumnHandle.class::cast)
-                .collect(toList());
-
-        HiveSplit hiveSplit = (HiveSplit) split;
-        Path path = new Path(hiveSplit.getPath());
-
-        Configuration configuration = hdfsEnvironment.getConfiguration(new HdfsContext(session, hiveSplit.getDatabase(), hiveSplit.getTable()), path);
-
-        Optional<ConnectorPageSource> pageSource = createHivePageSource(
-                cursorProviders,
-                pageSourceFactories,
-                configuration,
-                session,
-                path,
-                hiveSplit.getBucketNumber(),
-                hiveSplit.getStart(),
-                hiveSplit.getLength(),
-                hiveSplit.getFileSize(),
-                hiveSplit.getSchema(),
-                hiveSplit.getEffectivePredicate(),
-                hiveColumns,
-                hiveSplit.getPartitionKeys(),
-                hiveStorageTimeZone,
-                typeManager,
-                hiveSplit.getColumnCoercions(),
-                hiveSplit.getBucketConversion(),
-                hiveSplit.isS3SelectPushdownEnabled());
-        if (pageSource.isPresent()) {
-            return pageSource.get();
-        }
-        throw new RuntimeException("Could not find a file reader for split " + hiveSplit);
-    }
-
     public static Optional<ConnectorPageSource> createHivePageSource(
             Set<HiveRecordCursorProvider> cursorProviders,
             Set<HivePageSourceFactory> pageSourceFactories,
@@ -135,6 +100,7 @@ public class HivePageSourceProvider
             TypeManager typeManager,
             Map<Integer, HiveType> columnCoercions,
             Optional<BucketConversion> bucketConversion,
+            Optional<TableScanPipeline> scanPipeline,
             boolean s3SelectPushdownEnabled)
     {
         List<ColumnMapping> columnMappings = ColumnMapping.buildColumnMappings(
@@ -168,6 +134,7 @@ public class HivePageSourceProvider
                     schema,
                     toColumnHandles(regularAndInterimColumnMappings, true),
                     effectivePredicate,
+                    scanPipeline,
                     hiveStorageTimeZone);
             if (pageSource.isPresent()) {
                 return Optional.of(
@@ -180,6 +147,7 @@ public class HivePageSourceProvider
             }
         }
 
+        // TODO: throw error if the scanPipeline is
         for (HiveRecordCursorProvider provider : cursorProviders) {
             // GenericHiveRecordCursor will automatically do the coercion without HiveCoercionRecordCursor
             boolean doCoercion = !(provider instanceof GenericHiveRecordCursorProvider);
@@ -233,6 +201,51 @@ public class HivePageSourceProvider
         return Optional.empty();
     }
 
+    @Override
+    public ConnectorPageSource createPageSource(ConnectorTransactionHandle transaction, ConnectorSession session, ConnectorSplit split, List<ColumnHandle> columns)
+    {
+        List<HiveColumnHandle> hiveColumns = columns.stream()
+                .map(HiveColumnHandle.class::cast)
+                .collect(toList());
+
+        HiveSplit hiveSplit = (HiveSplit) split;
+        Path path = new Path(hiveSplit.getPath());
+
+        Configuration configuration = hdfsEnvironment.getConfiguration(new HdfsContext(session, hiveSplit.getDatabase(), hiveSplit.getTable()), path);
+
+        Optional<ConnectorPageSource> pageSource = createHivePageSource(
+                cursorProviders,
+                pageSourceFactories,
+                configuration,
+                session,
+                path,
+                hiveSplit.getBucketNumber(),
+                hiveSplit.getStart(),
+                hiveSplit.getLength(),
+                hiveSplit.getFileSize(),
+                hiveSplit.getSchema(),
+                hiveSplit.getEffectivePredicate(),
+                hiveColumns,
+                hiveSplit.getPartitionKeys(),
+                hiveStorageTimeZone,
+                typeManager,
+                hiveSplit.getColumnCoercions(),
+                hiveSplit.getBucketConversion(),
+                hiveSplit.getScanPipeline(),
+                hiveSplit.isS3SelectPushdownEnabled());
+        if (pageSource.isPresent()) {
+            return pageSource.get();
+        }
+        throw new RuntimeException("Could not find a file reader for split " + hiveSplit);
+    }
+
+    public enum ColumnMappingKind
+    {
+        REGULAR,
+        PREFILLED,
+        INTERIM,
+    }
+
     public static class ColumnMapping
     {
         private final ColumnMappingKind kind;
@@ -243,6 +256,15 @@ public class HivePageSourceProvider
          */
         private final OptionalInt index;
         private final Optional<HiveType> coercionFrom;
+
+        private ColumnMapping(ColumnMappingKind kind, HiveColumnHandle hiveColumnHandle, Optional<String> prefilledValue, OptionalInt index, Optional<HiveType> coerceFrom)
+        {
+            this.kind = requireNonNull(kind, "kind is null");
+            this.hiveColumnHandle = requireNonNull(hiveColumnHandle, "hiveColumnHandle is null");
+            this.prefilledValue = requireNonNull(prefilledValue, "prefilledValue is null");
+            this.index = requireNonNull(index, "index is null");
+            this.coercionFrom = requireNonNull(coerceFrom, "coerceFrom is null");
+        }
 
         public static ColumnMapping regular(HiveColumnHandle hiveColumnHandle, int index, Optional<HiveType> coerceFrom)
         {
@@ -262,40 +284,10 @@ public class HivePageSourceProvider
             return new ColumnMapping(ColumnMappingKind.INTERIM, hiveColumnHandle, Optional.empty(), OptionalInt.of(index), Optional.empty());
         }
 
-        private ColumnMapping(ColumnMappingKind kind, HiveColumnHandle hiveColumnHandle, Optional<String> prefilledValue, OptionalInt index, Optional<HiveType> coerceFrom)
+        public static ColumnMapping aggregate(HiveColumnHandle hiveColumnHandle, int index)
         {
-            this.kind = requireNonNull(kind, "kind is null");
-            this.hiveColumnHandle = requireNonNull(hiveColumnHandle, "hiveColumnHandle is null");
-            this.prefilledValue = requireNonNull(prefilledValue, "prefilledValue is null");
-            this.index = requireNonNull(index, "index is null");
-            this.coercionFrom = requireNonNull(coerceFrom, "coerceFrom is null");
-        }
-
-        public ColumnMappingKind getKind()
-        {
-            return kind;
-        }
-
-        public String getPrefilledValue()
-        {
-            checkState(kind == ColumnMappingKind.PREFILLED);
-            return prefilledValue.get();
-        }
-
-        public HiveColumnHandle getHiveColumnHandle()
-        {
-            return hiveColumnHandle;
-        }
-
-        public int getIndex()
-        {
-            checkState(kind == ColumnMappingKind.REGULAR || kind == ColumnMappingKind.INTERIM);
-            return index.getAsInt();
-        }
-
-        public Optional<HiveType> getCoercionFrom()
-        {
-            return coercionFrom;
+            checkArgument(hiveColumnHandle.getColumnType() == AGGREGATED);
+            return new ColumnMapping(ColumnMappingKind.REGULAR, hiveColumnHandle, Optional.empty(), OptionalInt.of(index), Optional.empty());
         }
 
         /**
@@ -321,6 +313,10 @@ public class HivePageSourceProvider
                 if (column.getColumnType() == REGULAR) {
                     checkArgument(regularColumnIndices.add(column.getHiveColumnIndex()), "duplicate hiveColumnIndex in columns list");
                     columnMappings.add(regular(column, regularIndex, coercionFrom));
+                    regularIndex++;
+                }
+                else if (column.getColumnType() == AGGREGATED) {
+                    columnMappings.add(aggregate(column, regularIndex));
                     regularIndex++;
                 }
                 else {
@@ -369,13 +365,33 @@ public class HivePageSourceProvider
                     })
                     .collect(toList());
         }
-    }
 
-    public enum ColumnMappingKind
-    {
-        REGULAR,
-        PREFILLED,
-        INTERIM,
+        public ColumnMappingKind getKind()
+        {
+            return kind;
+        }
+
+        public String getPrefilledValue()
+        {
+            checkState(kind == ColumnMappingKind.PREFILLED);
+            return prefilledValue.get();
+        }
+
+        public HiveColumnHandle getHiveColumnHandle()
+        {
+            return hiveColumnHandle;
+        }
+
+        public int getIndex()
+        {
+            checkState(kind == ColumnMappingKind.REGULAR || kind == ColumnMappingKind.INTERIM);
+            return index.getAsInt();
+        }
+
+        public Optional<HiveType> getCoercionFrom()
+        {
+            return coercionFrom;
+        }
     }
 
     public static class BucketAdaptation

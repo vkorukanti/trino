@@ -402,6 +402,7 @@ public enum FileFormat
                         createSchema(format, columnNames, columnTypes),
                         columnHandles,
                         TupleDomain.all(),
+                        Optional.empty(),
                         DateTimeZone.forID(session.getTimeZoneKey().getId()))
                 .get();
     }

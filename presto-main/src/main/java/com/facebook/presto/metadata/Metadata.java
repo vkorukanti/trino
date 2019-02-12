@@ -24,6 +24,10 @@ import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SystemTable;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
 import com.facebook.presto.spi.security.Privilege;
@@ -313,4 +317,24 @@ public interface Metadata
     TablePropertyManager getTablePropertyManager();
 
     ColumnPropertyManager getColumnPropertyManager();
+
+    Optional<TableScanPipeline> pushProjectIntoScan(Session session, TableHandle tableHandle,
+            Optional<TableScanPipeline> existingPipeline, ProjectPipelineNode projectPipelineNode);
+
+    Optional<TableScanPipeline> pushFilterIntoScan(Session session, TableHandle tableHandle,
+            Optional<TableScanPipeline> existingPipeline, FilterPipelineNode filterPipelineNode);
+
+    /**
+     * push complete aggregations into table scan
+     */
+    Optional<TableScanPipeline> pushAggregationsIntoScan(Session session, TableHandle tableHandle,
+            Optional<TableScanPipeline> existingPipeline, AggregationPipelineNode aggregations);
+
+    /**
+     * Push partial (split level) aggregations into table scan
+     */
+    Optional<TableScanPipeline> pushPartialAggregationsIntoScan(Session session, TableHandle tableHandle,
+            Optional<TableScanPipeline> existingPipeline, AggregationPipelineNode aggregations);
+
+    Optional<TableLayoutHandle> pushTableScanIntoConnectorTableLayout(Session session, TableLayoutHandle tableLayoutHandle, TableScanPipeline scanPipeline);
 }

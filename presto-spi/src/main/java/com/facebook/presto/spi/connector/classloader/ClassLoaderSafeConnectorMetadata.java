@@ -34,6 +34,10 @@ import com.facebook.presto.spi.classloader.ThreadContextClassLoader;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.connector.ConnectorPartitioningHandle;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
 import com.facebook.presto.spi.security.Privilege;
@@ -448,6 +452,50 @@ public class ClassLoaderSafeConnectorMetadata
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
             return delegate.listTablePrivileges(session, prefix);
+        }
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushProjectIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, ProjectPipelineNode projects)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.pushProjectIntoScan(session, connectorTableHandle, currentPipeline, projects);
+        }
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushFilterIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, FilterPipelineNode filters)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.pushFilterIntoScan(session, connectorTableHandle, currentPipeline, filters);
+        }
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, AggregationPipelineNode aggregations)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.pushAggregationIntoScan(session, connectorTableHandle, currentPipeline, aggregations);
+        }
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushPartialAggregationIntoScan(ConnectorSession session, ConnectorTableHandle connectorTableHandle,
+            Optional<TableScanPipeline> currentPipeline, AggregationPipelineNode aggregations)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.pushPartialAggregationIntoScan(session, connectorTableHandle, currentPipeline, aggregations);
+        }
+    }
+
+    @Override
+    public Optional<ConnectorTableLayoutHandle> pushTableScanIntoConnectorLayoutHandle(ConnectorSession session, TableScanPipeline scanPipeline, ConnectorTableLayoutHandle connectorTableLayoutHandle)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.pushTableScanIntoConnectorLayoutHandle(session, scanPipeline, connectorTableLayoutHandle);
         }
     }
 }

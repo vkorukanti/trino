@@ -197,6 +197,7 @@ public class HiveSplitManager
                 hivePartitions,
                 layout.getCompactEffectivePredicate(),
                 createBucketSplitInfo(bucketHandle, bucketFilter),
+                layout.getScanPipeline(),
                 session,
                 hdfsEnvironment,
                 namenodeStats,

@@ -125,6 +125,11 @@ public class FeaturesConfig
     private int maxGroupingSets = 2048;
     private boolean legacyUnnestArrayRows;
 
+    private boolean pushProjectIntoScan = true; // TODO: change default value to false
+    private boolean pushFilterIntoScan = true; // TODO: change default value to false
+    private boolean pushPartialAggregationsIntoScan = true; // TODO: change default value to false
+    private boolean pushAggregationsIntoScan = true; // TODO: change default value to false
+
     public enum JoinReorderingStrategy
     {
         NONE,
@@ -910,6 +915,54 @@ public class FeaturesConfig
     public FeaturesConfig setLegacyUnnestArrayRows(boolean legacyUnnestArrayRows)
     {
         this.legacyUnnestArrayRows = legacyUnnestArrayRows;
+        return this;
+    }
+
+    public boolean isPushProjectIntoScanEnabled()
+    {
+        return pushProjectIntoScan;
+    }
+
+    @Config("pushdowns.project-into-scan")
+    public FeaturesConfig setPushProjectIntoScanEnabled(boolean pushProjectIntoScan)
+    {
+        this.pushProjectIntoScan = pushProjectIntoScan;
+        return this;
+    }
+
+    public boolean isPushFilterIntoScanEnabled()
+    {
+        return pushFilterIntoScan;
+    }
+
+    @Config("pushdowns.filter-into-scan")
+    public FeaturesConfig setPushFilterIntoScanEnabled(boolean pushFilterIntoScan)
+    {
+        this.pushFilterIntoScan = pushFilterIntoScan;
+        return this;
+    }
+
+    public boolean isPushPartialAggregationsIntoScanEnabled()
+    {
+        return pushPartialAggregationsIntoScan;
+    }
+
+    @Config("pushdowns.partial-aggregations-into-scan")
+    public FeaturesConfig setPushPartialAggregationsIntoScanEnabled(boolean pushPartialAggregationsIntoScan)
+    {
+        this.pushPartialAggregationsIntoScan = pushPartialAggregationsIntoScan;
+        return this;
+    }
+
+    public boolean isPushAggregationsIntoScanEnabled()
+    {
+        return pushAggregationsIntoScan;
+    }
+
+    @Config("pushdowns.aggregations-into-scan")
+    public FeaturesConfig setPushAggregationsIntoScanEnabled(boolean pushAggregationsIntoScan)
+    {
+        this.pushAggregationsIntoScan = pushAggregationsIntoScan;
         return this;
     }
 }

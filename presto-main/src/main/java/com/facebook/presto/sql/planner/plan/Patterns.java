@@ -15,6 +15,7 @@ package com.facebook.presto.sql.planner.plan;
 
 import com.facebook.presto.matching.Pattern;
 import com.facebook.presto.matching.Property;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.sql.planner.Symbol;
 import com.facebook.presto.sql.tree.Expression;
 
@@ -169,6 +170,14 @@ public class Patterns
     public static Property<PlanNode, List<PlanNode>> sources()
     {
         return property("sources", PlanNode::getSources);
+    }
+
+    public static class ScanNode
+    {
+        public static Property<TableScanNode, TableScanPipeline> pipeline()
+        {
+            return optionalProperty("pipeline", TableScanNode::getScanPipeline);
+        }
     }
 
     public static class Aggregation

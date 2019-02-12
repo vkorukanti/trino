@@ -32,8 +32,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 
+import static com.facebook.presto.pinot.PinotColumnHandle.PinotColumnType.REGULAR;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.type.ColorType.COLOR;
@@ -49,9 +49,9 @@ public class PinotSplitManagerTest
     void init() throws SocketException, UnknownHostException
     {
         pinotSplitManager = new PinotSplitManager(new PinotConnectorId(""), new PinotConfig(), new PinotConnection(new PinotClusterInfoFetcher(new PinotConfig())));
-        columnCityId = new PinotColumnHandle("pinot", "city_id", BIGINT, 0, Optional.empty());
-        columnCountryName = new PinotColumnHandle("pinot", "country_name", VARCHAR, 1, Optional.empty());
-        columnColor = new PinotColumnHandle("pinot", "color", COLOR, 2, Optional.empty());
+        columnCityId = new PinotColumnHandle("city_id", BIGINT, REGULAR);
+        columnCountryName = new PinotColumnHandle("country_name", VARCHAR, REGULAR);
+        columnColor = new PinotColumnHandle("color", COLOR, REGULAR);
     }
 
     @Test

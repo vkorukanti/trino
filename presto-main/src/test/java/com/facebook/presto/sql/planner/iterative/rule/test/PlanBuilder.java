@@ -391,7 +391,8 @@ public class PlanBuilder
                 assignments,
                 tableLayout,
                 currentConstraint,
-                enforcedConstraint);
+                enforcedConstraint,
+                Optional.empty());
     }
 
     public TableFinishNode tableDelete(SchemaTableName schemaTableName, PlanNode deleteSource, Symbol deleteRowId)

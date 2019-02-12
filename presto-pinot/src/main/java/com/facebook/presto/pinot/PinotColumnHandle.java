@@ -20,7 +20,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Objects;
-import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
@@ -28,31 +27,19 @@ import static java.util.Objects.requireNonNull;
 public final class PinotColumnHandle
         implements ColumnHandle
 {
-    private final String connectorId;
     private final String columnName;
     private final Type columnType;
-    private final int ordinalPosition;
-    private Optional<String> aggregationType;
+    private final PinotColumnType type;
 
     @JsonCreator
     public PinotColumnHandle(
-            @JsonProperty("connectorId") String connectorId,
             @JsonProperty("columnName") String columnName,
             @JsonProperty("columnType") Type columnType,
-            @JsonProperty("ordinalPosition") int ordinalPosition,
-            @JsonProperty("aggregation") Optional<String> aggregationType)
+            @JsonProperty("type") PinotColumnType type)
     {
-        this.connectorId = requireNonNull(connectorId, "connectorId is null");
         this.columnName = requireNonNull(columnName, "columnName is null");
         this.columnType = requireNonNull(columnType, "columnType is null");
-        this.ordinalPosition = ordinalPosition;
-        this.aggregationType = requireNonNull(aggregationType, "aggregationType is null");
-    }
-
-    @JsonProperty
-    public String getConnectorId()
-    {
-        return connectorId;
+        this.type = requireNonNull(type, "type is null");
     }
 
     @JsonProperty
@@ -68,20 +55,9 @@ public final class PinotColumnHandle
     }
 
     @JsonProperty
-    public int getOrdinalPosition()
+    public PinotColumnType getType()
     {
-        return ordinalPosition;
-    }
-
-    @JsonProperty
-    public Optional<String> getAggregationType()
-    {
-        return aggregationType;
-    }
-
-    public void setAggregationType(Optional<String> aggregationType)
-    {
-        this.aggregationType = requireNonNull(aggregationType, "aggregationType is null");
+        return type;
     }
 
     public ColumnMetadata getColumnMetadata()
@@ -95,28 +71,39 @@ public final class PinotColumnHandle
     }
 
     @Override
-    public int hashCode()
+    public boolean equals(Object o)
     {
-        return Objects.hash(connectorId, columnName);
-    }
-
-    @Override
-    public boolean equals(Object obj)
-    {
-        if (this == obj) {
+        if (this == o) {
             return true;
         }
-        if ((obj == null) || (getClass() != obj.getClass())) {
+
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
 
-        PinotColumnHandle other = (PinotColumnHandle) obj;
-        return Objects.equals(this.connectorId, other.connectorId) && Objects.equals(this.columnName, other.columnName);
+        PinotColumnHandle that = (PinotColumnHandle) o;
+        return Objects.equals(columnName, that.columnName);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(columnName);
     }
 
     @Override
     public String toString()
     {
-        return toStringHelper(this).add("connectorId", connectorId).add("columnName", columnName).add("columnType", columnType).add("ordinalPosition", ordinalPosition).add("aggregation", aggregationType).toString();
+        return toStringHelper(this)
+                .add("columnName", columnName)
+                .add("columnType", columnType)
+                .add("type", type)
+                .toString();
+    }
+
+    enum PinotColumnType
+    {
+        REGULAR,
+        DERIVED
     }
 }

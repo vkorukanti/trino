@@ -116,6 +116,10 @@ public final class SystemSessionProperties
     public static final String IGNORE_STATS_CALCULATOR_FAILURES = "ignore_stats_calculator_failures";
     public static final String MAX_DRIVERS_PER_TASK = "max_drivers_per_task";
     public static final String DEFAULT_FILTER_FACTOR_ENABLED = "default_filter_factor_enabled";
+    public static final String PUSH_PROJECT_INTO_SCAN = "pushdown_project_into_scan";
+    public static final String PUSH_FILTER_INTO_SCAN = "pushdown_filter_into_scan";
+    public static final String PUSH_PARTIAL_AGGREGATIONS_INTO_SCAN = "pushdown_partial_aggregations_into_scan";
+    public static final String PUSH_AGGREGATIONS_INTO_SCAN = "pushdown_aggregations_into_scan";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -543,6 +547,26 @@ public final class SystemSessionProperties
                         DEFAULT_FILTER_FACTOR_ENABLED,
                         "use a default filter factor for unknown filters in a filter node",
                         featuresConfig.isDefaultFilterFactorEnabled(),
+                        false),
+                booleanProperty(
+                        PUSH_PROJECT_INTO_SCAN,
+                        "push project into table scan depending upon the connector support",
+                        featuresConfig.isPushProjectIntoScanEnabled(),
+                        false),
+                booleanProperty(
+                        PUSH_FILTER_INTO_SCAN,
+                        "push filter into table scan depending upon the connector support",
+                        featuresConfig.isPushFilterIntoScanEnabled(),
+                        false),
+                booleanProperty(
+                        PUSH_PARTIAL_AGGREGATIONS_INTO_SCAN,
+                        "push partial aggregations (task level) into table scan depending upon the connector support",
+                        featuresConfig.isPushPartialAggregationsIntoScanEnabled(),
+                        false),
+                booleanProperty(
+                        PUSH_AGGREGATIONS_INTO_SCAN,
+                        "push complete aggregations into table scan depending upon the connector support",
+                        featuresConfig.isPushAggregationsIntoScanEnabled(),
                         false));
     }
 
@@ -924,5 +948,25 @@ public final class SystemSessionProperties
     public static boolean isDefaultFilterFactorEnabled(Session session)
     {
         return session.getSystemProperty(DEFAULT_FILTER_FACTOR_ENABLED, Boolean.class);
+    }
+
+    public static boolean isPushdownProjectIntoScan(Session session)
+    {
+        return session.getSystemProperty(PUSH_PROJECT_INTO_SCAN, Boolean.class);
+    }
+
+    public static boolean isPushdownFilterIntoScan(Session session)
+    {
+        return session.getSystemProperty(PUSH_FILTER_INTO_SCAN, Boolean.class);
+    }
+
+    public static boolean isPushdownPartialAggregationsIntoScan(Session session)
+    {
+        return session.getSystemProperty(PUSH_PARTIAL_AGGREGATIONS_INTO_SCAN, Boolean.class);
+    }
+
+    public static boolean isPushdownAggregationsIntoScan(Session session)
+    {
+        return session.getSystemProperty(PUSH_AGGREGATIONS_INTO_SCAN, Boolean.class);
     }
 }

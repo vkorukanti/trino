@@ -41,6 +41,10 @@ import com.facebook.presto.spi.connector.ConnectorOutputMetadata;
 import com.facebook.presto.spi.connector.ConnectorPartitioningHandle;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.function.OperatorType;
+import com.facebook.presto.spi.pipeline.AggregationPipelineNode;
+import com.facebook.presto.spi.pipeline.FilterPipelineNode;
+import com.facebook.presto.spi.pipeline.ProjectPipelineNode;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.security.GrantInfo;
 import com.facebook.presto.spi.security.Privilege;
@@ -1018,5 +1022,71 @@ public class MetadataManager
     public Map<String, Collection<ConnectorMetadata>> getCatalogsByQueryId()
     {
         return ImmutableMap.copyOf(catalogsByQueryId);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushProjectIntoScan(Session session, TableHandle tableHandle,
+            Optional<TableScanPipeline> existingPipeline, ProjectPipelineNode projectPipelineNode)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        CatalogMetadata catalogMetadata = getCatalogMetadataForWrite(session, connectorId);
+        ConnectorMetadata metadata = catalogMetadata.getMetadata();
+        ConnectorSession connectorSession = session.toConnectorSession(catalogMetadata.getConnectorId());
+
+        return metadata.pushProjectIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, projectPipelineNode);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushFilterIntoScan(Session session, TableHandle tableHandle,
+            Optional<TableScanPipeline> existingPipeline, FilterPipelineNode filterPipelineNode)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        CatalogMetadata catalogMetadata = getCatalogMetadataForWrite(session, connectorId);
+        ConnectorMetadata metadata = catalogMetadata.getMetadata();
+        ConnectorSession connectorSession = session.toConnectorSession(catalogMetadata.getConnectorId());
+
+        return metadata.pushFilterIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, filterPipelineNode);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushAggregationsIntoScan(Session session, TableHandle tableHandle,
+            Optional<TableScanPipeline> existingPipeline, AggregationPipelineNode aggregations)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        CatalogMetadata catalogMetadata = getCatalogMetadataForWrite(session, connectorId);
+        ConnectorMetadata metadata = catalogMetadata.getMetadata();
+        ConnectorSession connectorSession = session.toConnectorSession(catalogMetadata.getConnectorId());
+
+        return metadata.pushAggregationIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, aggregations);
+    }
+
+    @Override
+    public Optional<TableScanPipeline> pushPartialAggregationsIntoScan(Session session, TableHandle tableHandle,
+            Optional<TableScanPipeline> existingPipeline, AggregationPipelineNode aggregations)
+    {
+        ConnectorId connectorId = tableHandle.getConnectorId();
+        CatalogMetadata catalogMetadata = getCatalogMetadataForWrite(session, connectorId);
+        ConnectorMetadata metadata = catalogMetadata.getMetadata();
+        ConnectorSession connectorSession = session.toConnectorSession(catalogMetadata.getConnectorId());
+
+        return metadata.pushPartialAggregationIntoScan(connectorSession, tableHandle.getConnectorHandle(), existingPipeline, aggregations);
+    }
+
+    @Override
+    public Optional<TableLayoutHandle> pushTableScanIntoConnectorTableLayout(Session session, TableLayoutHandle tableLayoutHandle, TableScanPipeline scanPipeline)
+    {
+        ConnectorId connectorId = tableLayoutHandle.getConnectorId();
+        CatalogMetadata catalogMetadata = getCatalogMetadata(session, connectorId);
+        ConnectorMetadata metadata = catalogMetadata.getMetadataFor(connectorId);
+        ConnectorTransactionHandle transaction = catalogMetadata.getTransactionHandleFor(connectorId);
+        ConnectorSession connectorSession = session.toConnectorSession(connectorId);
+
+        Optional<ConnectorTableLayoutHandle> newConnectorLayoutHandle = metadata.pushTableScanIntoConnectorLayoutHandle(connectorSession, scanPipeline, tableLayoutHandle.getConnectorHandle());
+
+        if (newConnectorLayoutHandle.isPresent()) {
+            return Optional.of(new TableLayoutHandle(connectorId, transaction, newConnectorLayoutHandle.get()));
+        }
+
+        return Optional.empty();
     }
 }

@@ -24,7 +24,6 @@ import javax.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static com.facebook.presto.pinot.Types.checkType;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -49,20 +48,19 @@ public class PinotPageSourceProvider
     public ConnectorPageSource createPageSource(ConnectorTransactionHandle transactionHandle, ConnectorSession session, ConnectorSplit split, List<ColumnHandle> columns)
     {
         requireNonNull(split, "partitionChunk is null");
-        PinotSplit pinotSplit = checkType(split, PinotSplit.class, "split");
+
+        PinotSplit pinotSplit = (PinotSplit) split;
         checkArgument(pinotSplit.getConnectorId().equals(connectorId), "split is not for this connector");
 
         List<PinotColumnHandle> handles = new ArrayList<>();
-        if (columns.isEmpty()) {
-            // For COUNT(*) and COUNT(1), no columns are passed down to Pinot
-            // Since this is the only known type of queries for this scenario, we just select time column from Pinot to facilitate the COUNT
-            handles.add(new PinotColumnHandle(this.connectorId, pinotSplit.getTimeColumn().getName(), pinotSplit.getTimeColumn().getType(), 0, Optional.empty()));
+        for (ColumnHandle handle : columns) {
+            handles.add(checkType(handle, PinotColumnHandle.class, "handle is not Pinot type"));
+        }
+        if (pinotSplit.getScanPipeline().isPresent()) {
+            return new PinotPushedDownQueryPageSource(this.pinotConfig, pinotSplit.getScanPipeline().get(), handles);
         }
         else {
-            for (ColumnHandle handle : columns) {
-                handles.add(checkType(handle, PinotColumnHandle.class, "handle"));
-            }
+            return new PinotPageSource(this.pinotConfig, this.pinotQueryClient, pinotSplit, handles);
         }
-        return new PinotPageSource(this.pinotConfig, this.pinotQueryClient, pinotSplit, handles);
     }
 }

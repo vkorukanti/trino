@@ -1354,7 +1354,7 @@ public class PrestoDatabaseMetaData
             throws SQLException
     {
         // TODO: implement this
-        throw new NotImplementedException("DatabaseMetaData", "getFunctions");
+        throw new NotImplementedException("DatabaseMetaData", "getExprs");
     }
 
     @Override

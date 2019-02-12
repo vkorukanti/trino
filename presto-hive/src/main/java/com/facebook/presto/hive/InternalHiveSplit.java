@@ -15,6 +15,7 @@ package com.facebook.presto.hive;
 
 import com.facebook.presto.hive.HiveSplit.BucketConversion;
 import com.facebook.presto.spi.HostAddress;
+import com.facebook.presto.spi.pipeline.TableScanPipeline;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.openjdk.jol.info.ClassLayout;
@@ -57,6 +58,7 @@ public class InternalHiveSplit
     private final boolean forceLocalScheduling;
     private final Map<Integer, HiveTypeName> columnCoercions;
     private final Optional<BucketConversion> bucketConversion;
+    private final Optional<TableScanPipeline> scanPipeline;
     private final boolean s3SelectPushdownEnabled;
 
     private long start;
@@ -76,6 +78,7 @@ public class InternalHiveSplit
             boolean forceLocalScheduling,
             Map<Integer, HiveTypeName> columnCoercions,
             Optional<BucketConversion> bucketConversion,
+            Optional<TableScanPipeline> scanPipeline,
             boolean s3SelectPushdownEnabled)
     {
         checkArgument(start >= 0, "start must be positive");
@@ -89,6 +92,7 @@ public class InternalHiveSplit
         requireNonNull(bucketNumber, "bucketNumber is null");
         requireNonNull(columnCoercions, "columnCoercions is null");
         requireNonNull(bucketConversion, "bucketConversion is null");
+        requireNonNull(scanPipeline, "scanPipeline is null");
 
         this.partitionName = partitionName;
         this.path = path;
@@ -103,6 +107,7 @@ public class InternalHiveSplit
         this.forceLocalScheduling = forceLocalScheduling;
         this.columnCoercions = ImmutableMap.copyOf(columnCoercions);
         this.bucketConversion = bucketConversion;
+        this.scanPipeline = scanPipeline;
         this.s3SelectPushdownEnabled = s3SelectPushdownEnabled;
     }
 
@@ -169,6 +174,11 @@ public class InternalHiveSplit
     public Optional<BucketConversion> getBucketConversion()
     {
         return bucketConversion;
+    }
+
+    public Optional<TableScanPipeline> getScanPipeline()
+    {
+        return scanPipeline;
     }
 
     public InternalHiveBlock currentBlock()
