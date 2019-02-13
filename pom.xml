@@ -55,6 +55,7 @@
         <dep.tempto.version>1.50</dep.tempto.version>
         <dep.testng.version>6.10</dep.testng.version>
         <dep.assertj-core.version>3.8.0</dep.assertj-core.version>
+        <dep.pinot.version>0.1.070</dep.pinot.version>
         <dep.logback.version>1.2.3</dep.logback.version>
 
         <!--
@@ -130,6 +131,7 @@
         <module>presto-memory-context</module>
         <module>presto-proxy</module>
         <module>presto-kudu</module>
+        <module>presto-pinot</module>
     </modules>
 
     <dependencyManagement>
@@ -297,6 +299,12 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-raptor</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-pinot</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
