@@ -110,7 +110,7 @@
         <module>core/trino-server-main</module>
         <module>core/trino-server-rpm</module>
         <module>core/trino-spi</module>
-        <module>docs</module>
+        <!-- <module>docs</module> -->
         <module>lib/trino-array</module>
         <module>lib/trino-collect</module>
         <module>lib/trino-filesystem</module>
@@ -134,6 +134,7 @@
         <module>plugin/trino-blackhole</module>
         <module>plugin/trino-cassandra</module>
         <module>plugin/trino-clickhouse</module>
+        <module>plugin/trino-delta</module>
         <module>plugin/trino-delta-lake</module>
         <module>plugin/trino-druid</module>
         <module>plugin/trino-elasticsearch</module>
@@ -182,7 +183,7 @@
         <module>service/trino-verifier</module>
         <module>testing/trino-benchmark</module>
         <module>testing/trino-benchmark-queries</module>
-        <module>testing/trino-benchto-benchmarks</module>
+        <!-- <module>testing/trino-benchto-benchmarks</module> -->
         <module>testing/trino-faulttolerant-tests</module>
         <module>testing/trino-plugin-reader</module>
         <module>testing/trino-product-tests</module>
@@ -266,6 +267,12 @@
                 <groupId>io.trino</groupId>
                 <artifactId>trino-collect</artifactId>
                 <type>test-jar</type>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.trino</groupId>
+                <artifactId>trino-delta</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -1901,6 +1908,13 @@
                 <version>42.5.0</version>
             </dependency>
 
+<!--
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-library</artifactId>
+                <version>2.12.13</version>
+            </dependency>
+-->
             <dependency>
                 <groupId>org.roaringbitmap</groupId>
                 <artifactId>RoaringBitmap</artifactId>
