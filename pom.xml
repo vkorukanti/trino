@@ -109,6 +109,7 @@
         <module>plugin/trino-blackhole</module>
         <module>plugin/trino-cassandra</module>
         <module>plugin/trino-clickhouse</module>
+        <module>plugin/trino-delta</module>
         <module>plugin/trino-druid</module>
         <module>plugin/trino-elasticsearch</module>
         <module>plugin/trino-example-http</module>
@@ -221,6 +222,12 @@
             <dependency>
                 <groupId>io.trino</groupId>
                 <artifactId>trino-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.trino</groupId>
+                <artifactId>trino-delta</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -538,7 +545,7 @@
             <dependency>
                 <groupId>io.trino.hadoop</groupId>
                 <artifactId>hadoop-apache</artifactId>
-                <version>3.2.0-12</version>
+                <version>3.2.0-12-delta</version>
             </dependency>
 
             <dependency>
@@ -1226,6 +1233,12 @@
                 <groupId>io.confluent</groupId>
                 <artifactId>kafka-schema-serializer</artifactId>
                 <version>${dep.confluent.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.delta</groupId>
+                <artifactId>delta-standalone_2.12</artifactId>
+                <version>0.3.0</version>
             </dependency>
 
             <dependency>
