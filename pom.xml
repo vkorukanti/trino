@@ -147,6 +147,7 @@
         <module>presto-pinot</module>
         <module>presto-oracle</module>
         <module>presto-druid</module>
+        <module>presto-delta-driver</module>
     </modules>
 
     <dependencyManagement>
@@ -1191,6 +1192,12 @@
                 <groupId>com.fasterxml.jackson.dataformat</groupId>
                 <artifactId>jackson-dataformat-cbor</artifactId>
                 <version>${dep.jackson.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.delta</groupId>
+                <artifactId>delta-standalone_2.12</artifactId>
+                <version>0.2.0</version>
             </dependency>
 
             <!-- force newer version to be used for dependencies -->
