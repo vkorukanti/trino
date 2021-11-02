@@ -445,7 +445,7 @@
             <dependency>
                 <groupId>io.prestosql.hadoop</groupId>
                 <artifactId>hadoop-apache</artifactId>
-                <version>3.2.0-9</version>
+                <version>3.2.0-11-delta</version>
             </dependency>
 
             <dependency>
