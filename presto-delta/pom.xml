@@ -18,22 +18,13 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.prestosql.delta</groupId>
-            <artifactId>presto-delta-driver</artifactId>
-            <classifier>shaded</classifier>
-            <version>${project.version}</version>
+            <groupId>io.delta</groupId>
+            <artifactId>delta-standalone_2.12</artifactId>
+            <version>0.2.1-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.delta</groupId>
                     <artifactId>delta-standalone_2.12</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.scala-lang</groupId>
-                    <artifactId>scala-library</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>commons-io</groupId>
-                    <artifactId>commons-io</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.fasterxml.jackson.module</groupId>
@@ -52,6 +43,18 @@
                     <artifactId>jackson-databind</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>2.12.11</version>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.8.0</version>
         </dependency>
 
         <dependency>
@@ -270,4 +273,20 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <configuration>
+                    <!-- TODO: Remove this once fixed -->
+                    <ignoredDependencies>
+                        <ignoredDependency>org.scala-lang:scala-library:jar</ignoredDependency>
+                        <ignoredDependency>commons-io:commons-io:jar</ignoredDependency>
+                    </ignoredDependencies>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
