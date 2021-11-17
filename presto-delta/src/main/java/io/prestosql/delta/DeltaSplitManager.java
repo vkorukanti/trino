@@ -14,6 +14,7 @@
 package io.prestosql.delta;
 
 import io.delta.standalone.actions.AddFile;
+import io.delta.standalone.data.CloseableIterator;
 import io.prestosql.spi.connector.ConnectorPartitionHandle;
 import io.prestosql.spi.connector.ConnectorSession;
 import io.prestosql.spi.connector.ConnectorSplit;
@@ -26,9 +27,10 @@ import org.apache.hadoop.fs.Path;
 
 import javax.inject.Inject;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -72,7 +74,7 @@ public class DeltaSplitManager
             implements ConnectorSplitSource
     {
         private final DeltaTable deltaTable;
-        private final Iterator<AddFile> fileIter;
+        private final CloseableIterator<AddFile> fileIter;
         private final int maxBatchSize;
 
         DeltaSplitSource(ConnectorSession session, DeltaTableHandle deltaTableHandle)
@@ -110,6 +112,12 @@ public class DeltaSplitManager
         @Override
         public void close()
         {
+            try {
+                fileIter.close();
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         @Override

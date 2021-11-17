@@ -16,6 +16,7 @@ package io.prestosql.delta;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 import io.delta.standalone.actions.AddFile;
+import io.delta.standalone.data.CloseableIterator;
 import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.connector.ColumnHandle;
 import io.prestosql.spi.connector.ConnectorSession;
@@ -26,11 +27,10 @@ import io.prestosql.spi.type.StandardTypes;
 import io.prestosql.spi.type.Type;
 import io.prestosql.spi.type.TypeManager;
 
+import java.io.IOException;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,9 +102,9 @@ public class DeltaExpressionUtils
      * Utility method that takes an iterator of {@link AddFile}s and a predicate and returns an iterator of {@link AddFile}s
      * that satisfy the predicate (predicate evaluates to a deterministic NO)
      */
-    public static Iterator<AddFile> iterateWithPredicate(
+    public static CloseableIterator<AddFile> iterateWithPredicate(
             ConnectorSession session,
-            Iterator<AddFile> inputIter,
+            CloseableIterator<AddFile> inputIter,
             TupleDomain<DeltaColumnHandle> predicate,
             TypeManager typeManager)
     {
@@ -114,7 +114,28 @@ public class DeltaExpressionUtils
         }
 
         if (partitionPredicate.isNone()) {
-            return Collections.emptyIterator(); // nothing passes the partition predicate, return empty iterator
+            // nothing passes the partition predicate, return empty iterator
+            return new CloseableIterator<AddFile>()
+            {
+                @Override
+                public boolean hasNext()
+                {
+                    return false;
+                }
+
+                @Override
+                public AddFile next()
+                {
+                    throw new NoSuchElementException();
+                }
+
+                @Override
+                public void close()
+                        throws IOException
+                {
+                    inputIter.close();
+                }
+            };
         }
 
         List<DeltaColumnHandle> partitionColumns =
@@ -123,7 +144,7 @@ public class DeltaExpressionUtils
                         .map(entry -> entry.getColumn())
                         .collect(Collectors.toList());
 
-        return new Iterator<AddFile>()
+        return new CloseableIterator<>()
         {
             private AddFile nextItem;
 
@@ -154,6 +175,13 @@ public class DeltaExpressionUtils
                 AddFile toReturn = nextItem;
                 nextItem = null;
                 return toReturn;
+            }
+
+            @Override
+            public void close()
+                    throws IOException
+            {
+                inputIter.close();
             }
         };
     }

@@ -17,6 +17,7 @@ import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Snapshot;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.Metadata;
+import io.delta.standalone.data.CloseableIterator;
 import io.prestosql.plugin.hive.HdfsEnvironment;
 import io.prestosql.plugin.hive.HdfsEnvironment.HdfsContext;
 import io.prestosql.spi.PrestoException;
@@ -32,7 +33,6 @@ import javax.inject.Inject;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -133,9 +133,9 @@ public class DeltaClient
     /**
      * Get the list of files corresponding to the given Delta table.
      *
-     * @return
+     * @return Closeable iterator of files. It is responsibility of the caller to close the iterator.
      */
-    public Iterator<AddFile> listFiles(ConnectorSession session, DeltaTable deltaTable)
+    public CloseableIterator<AddFile> listFiles(ConnectorSession session, DeltaTable deltaTable)
     {
         Optional<DeltaLog> deltaLog = loadDeltaTableLog(session, new Path(deltaTable.getTableLocation()));
         if (!deltaLog.isPresent()) {
@@ -145,8 +145,8 @@ public class DeltaClient
 
         return deltaLog.get()
                 .getSnapshotForVersionAsOf(deltaTable.getSnapshotId().get())
-                .getAllFiles()
-                .iterator();
+                .scan()
+                .getFiles();
     }
 
     private Optional<DeltaLog> loadDeltaTableLog(ConnectorSession session, Path tableLocation)
