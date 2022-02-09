@@ -319,6 +319,6 @@ public class DeltaPageSourceProvider
             DeltaColumnHandle column)
     {
         org.apache.parquet.schema.Type type = getParquetTypeByName(column.getName(), messageType);
-        return Optional.of(type);
+        return Optional.ofNullable(type)
     }
 }
