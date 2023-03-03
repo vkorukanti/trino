@@ -97,7 +97,7 @@
         <module>core/trino-server-main</module>
         <module>core/trino-server-rpm</module>
         <module>core/trino-spi</module>
-        <module>docs</module>
+        <!-- <module>docs</module> -->
         <module>lib/trino-array</module>
         <module>lib/trino-geospatial-toolkit</module>
         <module>lib/trino-matching</module>
@@ -1249,7 +1249,7 @@
             <dependency>
                 <groupId>io.delta</groupId>
                 <artifactId>delta-standalone_2.12</artifactId>
-                <version>0.3.0-SNAPSHOT</version> <!-- temporary until 0.3.0 is released --> 
+                <version>0.6.0-SNAPSHOT</version> <!-- temporary until 0.3.0 is released --> 
             </dependency>
 
             <dependency>
@@ -1501,6 +1501,13 @@
                 <version>42.3.1</version>
             </dependency>
 
+<!--
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-library</artifactId>
+                <version>2.12.13</version>
+            </dependency>
+-->
             <dependency>
                 <groupId>org.seleniumhq.selenium</groupId>
                 <artifactId>selenium-api</artifactId>
