@@ -16,15 +16,11 @@ package io.trino.delta;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import io.delta.standalone.core.DeltaScanTaskCore;
 import io.trino.spi.HostAddress;
 import io.trino.spi.connector.ConnectorSplit;
 
 import java.util.List;
-import java.util.Map;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
 public class DeltaSplit
@@ -33,14 +29,14 @@ public class DeltaSplit
     private final String connectorId;
     private final String schema;
     private final String table;
-    private final DeltaScanTaskCore task;
+    private final WrappedDeltaCoreTask task;
 
     @JsonCreator
     public DeltaSplit(
             @JsonProperty("connectorId") String connectorId,
             @JsonProperty("schemaName") String schema,
             @JsonProperty("tableName") String table,
-            @JsonProperty("task") DeltaScanTaskCore task)
+            @JsonProperty("task") WrappedDeltaCoreTask task)
     {
         this.connectorId = requireNonNull(connectorId, "connector id is null");
         this.schema = requireNonNull(schema, "schema name is null");
@@ -67,7 +63,7 @@ public class DeltaSplit
     }
 
     @JsonProperty
-    public DeltaScanTaskCore getTask()
+    public WrappedDeltaCoreTask getTask()
     {
         return task;
     }

@@ -93,7 +93,7 @@ public class DeltaSplitManager
                         connectorId,
                         deltaTable.getSchemaName(),
                         deltaTable.getTableName(),
-                        task));
+                        new WrappedDeltaCoreTask(task)));
             }
 
             return completedFuture(new ConnectorSplitBatch(splits, !taskListIterator.hasNext()));

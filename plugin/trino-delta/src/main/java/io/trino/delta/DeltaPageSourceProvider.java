@@ -126,7 +126,7 @@ public class DeltaPageSourceProvider
         ConnectorPageSource dataPageSource = createDeltaTaskPageSource(
                 hdfsEnvironment,
                 hdfsConfiguration.getConfiguration(hdfsContext, null),
-                deltaSplit.getTask(),
+                deltaSplit.getTask().getTask(),
                 regularColumnHandles);
 
         return new DeltaPageSource(
@@ -253,6 +253,11 @@ public class DeltaPageSourceProvider
             DeltaScanTaskCore task,
             List<DeltaColumnHandle> columns)
     {
-            return null;
+        return new DeltaCoreTaskPageSource(
+                hdfsEnvironment,
+                identity,
+                configuration,
+                task,
+                columns);
     }
 }
