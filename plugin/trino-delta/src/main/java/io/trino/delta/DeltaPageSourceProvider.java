@@ -17,8 +17,10 @@ package io.trino.delta;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.delta.standalone.core.DeltaScanTaskCore;
 import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.filesystem.TrinoInputFile;
+import io.trino.hdfs.HdfsConfiguration;
 import io.trino.hdfs.HdfsContext;
 import io.trino.hdfs.HdfsEnvironment;
 import io.trino.parquet.ParquetReaderOptions;
@@ -41,7 +43,7 @@ import io.trino.spi.predicate.Utils;
 import io.trino.spi.type.StandardTypes;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
 import org.joda.time.DateTimeZone;
@@ -64,6 +66,7 @@ public class DeltaPageSourceProvider
 {
     private final TrinoFileSystemFactory fileSystemFactory;
     private final HdfsEnvironment hdfsEnvironment;
+    private final HdfsConfiguration hdfsConfiguration;
     private final TypeManager typeManager;
     private final FileFormatDataSourceStats fileFormatDataSourceStats;
 
@@ -71,12 +74,14 @@ public class DeltaPageSourceProvider
     public DeltaPageSourceProvider(
             TrinoFileSystemFactory fileSystemFactory,
             HdfsEnvironment hdfsEnvironment,
+            HdfsConfiguration hdfsConfiguration,
             TypeManager typeManager,
             FileFormatDataSourceStats fileFormatDataSourceStats)
     {
         this.fileSystemFactory = requireNonNull(fileSystemFactory, "fileSystemFactory is null");
         this.hdfsEnvironment = requireNonNull(hdfsEnvironment, "hdfsEnvironment is null");
         this.typeManager = requireNonNull(typeManager, "typeManager is null");
+        this.hdfsConfiguration = requireNonNull(hdfsConfiguration, "hdfsConfiguration is null");
         this.fileFormatDataSourceStats = requireNonNull(fileFormatDataSourceStats, "fileFormatDataSourceStats is null");
     }
 
@@ -93,7 +98,6 @@ public class DeltaPageSourceProvider
         DeltaTableHandle deltaTableHandle = (DeltaTableHandle) table;
 
         HdfsContext hdfsContext = new HdfsContext(session.getIdentity());
-        Path filePath = new Path(deltaSplit.getFilePath());
         List<DeltaColumnHandle> deltaColumnHandles = columns.stream()
                 .map(DeltaColumnHandle.class::cast)
                 .collect(Collectors.toList());
@@ -102,23 +106,34 @@ public class DeltaPageSourceProvider
                 .filter(columnHandle -> columnHandle.getColumnType() != PARTITION)
                 .collect(Collectors.toList());
 
-        TrinoInputFile inputFile = fileSystemFactory.create(session).newInputFile(
-                deltaSplit.getFilePath(),
-                deltaSplit.getFileSize());
-
-        ReaderPageSource dataPageSource = createParquetPageSource(
-                inputFile,
-                deltaSplit.getStart(),
-                deltaSplit.getLength(),
-                regularColumnHandles,
-                typeManager,
-                deltaTableHandle.getPredicate(),
-                fileFormatDataSourceStats);
+//        TrinoInputFile inputFile = fileSystemFactory.create(session).newInputFile(
+//                deltaSplit.getFilePath(),
+//                deltaSplit.getFileSize());
+//
+//        ReaderPageSource dataPageSource = createParquetPageSource(
+//                inputFile,
+//                deltaSplit.getStart(),
+//                deltaSplit.getLength(),
+//                regularColumnHandles,
+//                typeManager,
+//                deltaTableHandle.getPredicate(),
+//                fileFormatDataSourceStats);
+//
+//        return new DeltaPageSource(
+//                deltaColumnHandles,
+//                convertPartitionValues(deltaColumnHandles, deltaSplit.getPartitionValues()),
+//                dataPageSource.get());
+        ConnectorPageSource dataPageSource = createDeltaTaskPageSource(
+                hdfsEnvironment,
+                hdfsConfiguration.getConfiguration(hdfsContext, null),
+                deltaSplit.getTask(),
+                regularColumnHandles);
 
         return new DeltaPageSource(
                 deltaColumnHandles,
-                convertPartitionValues(deltaColumnHandles, deltaSplit.getPartitionValues()),
-                dataPageSource.get());
+                // convertPartitionValues(deltaColumnHandles, deltaSplit.getPartitionValues()),
+                ImmutableMap.of(),
+                dataPageSource);
     }
 
     /**
@@ -230,5 +245,14 @@ public class DeltaPageSourceProvider
             TypeManager typeManager)
     {
         return Optional.of(deltaLakeColumnHandle.toHiveColumnHandle(typeManager));
+    }
+
+    private static ConnectorPageSource createDeltaTaskPageSource(
+            HdfsEnvironment hdfsEnvironment,
+            Configuration configuration,
+            DeltaScanTaskCore task,
+            List<DeltaColumnHandle> columns)
+    {
+            return null;
     }
 }

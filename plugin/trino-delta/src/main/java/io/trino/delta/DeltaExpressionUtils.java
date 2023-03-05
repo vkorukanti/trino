@@ -16,6 +16,7 @@ package io.trino.delta;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 import io.delta.standalone.actions.AddFile;
+import io.delta.standalone.core.DeltaScanTaskCore;
 import io.delta.standalone.data.CloseableIterator;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ColumnHandle;
@@ -96,94 +97,6 @@ public class DeltaExpressionUtils
         return partitionValues.entrySet().stream()
                 .filter(entry -> entry.getValue() != null)
                 .collect(toMap(entry -> entry.getKey().toLowerCase(Locale.ROOT), Map.Entry::getValue));
-    }
-
-    /**
-     * Utility method that takes an iterator of {@link AddFile}s and a predicate and returns an iterator of {@link AddFile}s
-     * that satisfy the predicate (predicate evaluates to a deterministic NO)
-     */
-    public static CloseableIterator<AddFile> iterateWithPartitionPruning(
-            ConnectorSession session,
-            CloseableIterator<AddFile> inputIterator,
-            TupleDomain<DeltaColumnHandle> predicate,
-            TypeManager typeManager)
-    {
-        TupleDomain<String> partitionPredicate = extractPartitionColumnsPredicate(predicate);
-        if (partitionPredicate.isAll() /* no partition filter */ || !isPartitionPruningEnabled(session)) {
-            return inputIterator;
-        }
-
-        if (partitionPredicate.isNone()) {
-            // nothing passes the partition predicate, return empty iterator
-            return new CloseableIterator<AddFile>()
-            {
-                @Override
-                public boolean hasNext()
-                {
-                    return false;
-                }
-
-                @Override
-                public AddFile next()
-                {
-                    throw new NoSuchElementException();
-                }
-
-                @Override
-                public void close()
-                        throws IOException
-                {
-                    inputIterator.close();
-                }
-            };
-        }
-
-        List<DeltaColumnHandle> partitionColumns =
-                predicate.getDomains().get().entrySet().stream()
-                        .filter(entry -> entry.getKey().getColumnType() == PARTITION)
-                        .map(entry -> entry.getKey())
-                        .collect(Collectors.toList());
-
-        return new CloseableIterator<>()
-        {
-            private AddFile nextItem;
-
-            @Override
-            public boolean hasNext()
-            {
-                if (nextItem != null) {
-                    return true;
-                }
-
-                while (inputIterator.hasNext()) {
-                    AddFile nextFile = inputIterator.next();
-                    if (evaluatePartitionPredicate(partitionPredicate, partitionColumns, typeManager, nextFile)) {
-                        nextItem = nextFile;
-                        break;
-                    }
-                }
-
-                return nextItem != null;
-            }
-
-            @Override
-            public AddFile next()
-            {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("there are no more files");
-                }
-                AddFile toReturn = nextItem;
-                nextItem = null;
-                return toReturn;
-            }
-
-            @Override
-            public void close()
-                    throws IOException
-            {
-                inputIterator.close();
-            }
-        };
     }
 
     private static TupleDomain<String> extractPartitionColumnsPredicate(TupleDomain<DeltaColumnHandle> predicate)
