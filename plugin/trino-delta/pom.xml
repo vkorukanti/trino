@@ -127,10 +127,10 @@
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-databind</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>org.scala-lang.modules</groupId>
-                    <artifactId>scala-collection-compat_2.12</artifactId>
-                </exclusion>
+<!--                <exclusion>-->
+<!--                    <groupId>org.scala-lang.modules</groupId>-->
+<!--                    <artifactId>scala-collection-compat_2.12</artifactId>-->
+<!--                </exclusion>-->
             </exclusions>
         </dependency>
 
@@ -151,32 +151,8 @@
 
         <dependency>
             <groupId>org.apache.arrow</groupId>
-            <artifactId>arrow-dataset</artifactId>
-            <version>10.0.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.fasterxml.jackson.core</groupId>
-                    <artifactId>jackson-annotations</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.fasterxml.jackson.module</groupId>
-                    <artifactId>jackson-annotations</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.fasterxml.jackson.datatype</groupId>
-                    <artifactId>jackson-datatype-jsr310</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.fasterxml.jackson.core</groupId>
-                    <artifactId>jackson-databind</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-memory-unsafe</artifactId>
-            <version>10.0.0</version>
+            <version>11.0.0</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
@@ -315,6 +291,27 @@
                     <ignoredDependencies>
                         <ignoredDependency>org.scala-lang:scala-library:jar</ignoredDependency>
                         <ignoredDependency>commons-io:commons-io:jar</ignoredDependency>
+                        <ignoredDependency>org.apache.arrow:arrow-memory-unsafe:jar</ignoredDependency>
+                    </ignoredDependencies>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.basepom.maven</groupId>
+                <artifactId>duplicate-finder-maven-plugin</artifactId>
+                <configuration>
+                    <ignoredDependencies>
+                        <dependency>
+                            <groupId>org.scala-lang.modules</groupId>
+                            <artifactId>scala-collection-compat_2.12</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.apache.arrow</groupId>
+                            <artifactId>arrow-memory-unsafe</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.apache.arrow</groupId>
+                            <artifactId>arrow-memory-core</artifactId>
+                        </dependency>
                     </ignoredDependencies>
                 </configuration>
             </plugin>
