@@ -17,6 +17,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import io.delta.standalone.core.DeltaScanTaskCore;
 import io.trino.spi.HostAddress;
 import io.trino.spi.connector.ConnectorSplit;
 
@@ -32,35 +33,19 @@ public class DeltaSplit
     private final String connectorId;
     private final String schema;
     private final String table;
-    private final String filePath;
-    private final long start;
-    private final long length;
-    private final long fileSize;
-    private final Map<String, String> partitionValues;
+    private final DeltaScanTaskCore task;
 
     @JsonCreator
     public DeltaSplit(
             @JsonProperty("connectorId") String connectorId,
             @JsonProperty("schemaName") String schema,
             @JsonProperty("tableName") String table,
-            @JsonProperty("filePath") String filePath,
-            @JsonProperty("start") long start,
-            @JsonProperty("length") long length,
-            @JsonProperty("fileSize") long fileSize,
-            @JsonProperty("partitionValues") Map<String, String> partitionValues)
+            @JsonProperty("task") DeltaScanTaskCore task)
     {
-        checkArgument(start >= 0, "start must be positive");
-        checkArgument(length >= 0, "length must be positive");
-        checkArgument(fileSize >= 0, "fileSize must be positive");
-
         this.connectorId = requireNonNull(connectorId, "connector id is null");
         this.schema = requireNonNull(schema, "schema name is null");
         this.table = requireNonNull(table, "table name is null");
-        this.filePath = requireNonNull(filePath, "filePath name is null");
-        this.start = start;
-        this.length = length;
-        this.fileSize = fileSize;
-        this.partitionValues = ImmutableMap.copyOf(requireNonNull(partitionValues, "partitionValues id is null"));
+        this.task = requireNonNull(task, "task name is null");
     }
 
     @JsonProperty
@@ -82,33 +67,9 @@ public class DeltaSplit
     }
 
     @JsonProperty
-    public String getFilePath()
+    public DeltaScanTaskCore getTask()
     {
-        return filePath;
-    }
-
-    @JsonProperty
-    public long getStart()
-    {
-        return start;
-    }
-
-    @JsonProperty
-    public long getLength()
-    {
-        return length;
-    }
-
-    @JsonProperty
-    public long getFileSize()
-    {
-        return fileSize;
-    }
-
-    @JsonProperty
-    public Map<String, String> getPartitionValues()
-    {
-        return partitionValues;
+        return task;
     }
 
     @Override

@@ -15,8 +15,8 @@ package io.trino.delta;
 
 import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Snapshot;
-import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.Metadata;
+import io.delta.standalone.core.DeltaScanTaskCore;
 import io.delta.standalone.data.CloseableIterator;
 import io.trino.plugin.hive.HdfsEnvironment;
 import io.trino.plugin.hive.HdfsEnvironment.HdfsContext;
@@ -116,7 +116,9 @@ public class DeltaClient
      *
      * @return Closeable iterator of files. It is responsibility of the caller to close the iterator.
      */
-    public CloseableIterator<AddFile> listFiles(ConnectorSession session, DeltaTable deltaTable)
+    public CloseableIterator<DeltaScanTaskCore> listTasks(
+            ConnectorSession session,
+            DeltaTable deltaTable)
     {
         Optional<DeltaLog> deltaLog = loadDeltaTableLog(
                 session,
@@ -130,8 +132,8 @@ public class DeltaClient
 
         return deltaLog.get()
                 .getSnapshotForVersionAsOf(deltaTable.getSnapshotId().get())
-                .scan()
-                .getFiles();
+                .scan(new DeltaScanHelperWithArrowParquetReader())
+                .getTasks();
     }
 
     private Optional<DeltaLog> loadDeltaTableLog(ConnectorSession session, Path tableLocation, SchemaTableName schemaTableName)

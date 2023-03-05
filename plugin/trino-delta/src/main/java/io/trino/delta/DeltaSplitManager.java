@@ -13,7 +13,7 @@
  */
 package io.trino.delta;
 
-import io.delta.standalone.actions.AddFile;
+import io.delta.standalone.core.DeltaScanTaskCore;
 import io.delta.standalone.data.CloseableIterator;
 import io.trino.spi.connector.ConnectorPartitionHandle;
 import io.trino.spi.connector.ConnectorSession;
@@ -24,18 +24,15 @@ import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.connector.DynamicFilter;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.fs.Path;
 
 import javax.inject.Inject;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import static io.trino.delta.DeltaExpressionUtils.sanitizePartitionValues;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
@@ -76,17 +73,13 @@ public class DeltaSplitManager
             implements ConnectorSplitSource
     {
         private final DeltaTable deltaTable;
-        private final CloseableIterator<AddFile> fileListIterator;
+        private final CloseableIterator<DeltaScanTaskCore> taskListIterator;
         private final int maxBatchSize;
 
         DeltaSplitSource(ConnectorSession session, DeltaTableHandle deltaTableHandle)
         {
             this.deltaTable = deltaTableHandle.getDeltaTable();
-            this.fileListIterator = DeltaExpressionUtils.iterateWithPartitionPruning(
-                    session,
-                    deltaClient.listFiles(session, deltaTable),
-                    deltaTableHandle.getPredicate(),
-                    typeManager);
+            this.taskListIterator = deltaClient.listTasks(session, deltaTable);
             this.maxBatchSize = deltaConfig.getMaxSplitsBatchSize();
         }
 
@@ -94,28 +87,23 @@ public class DeltaSplitManager
         public CompletableFuture<ConnectorSplitBatch> getNextBatch(ConnectorPartitionHandle partitionHandle, int maxSize)
         {
             List<ConnectorSplit> splits = new ArrayList<>();
-            while (fileListIterator.hasNext() && splits.size() < maxSize && splits.size() < maxBatchSize) {
-                AddFile file = fileListIterator.next();
-                Path filePath = new Path(deltaTable.getTableLocation(), URI.create(file.getPath()).getPath());
+            while (taskListIterator.hasNext() && splits.size() < maxSize && splits.size() < maxBatchSize) {
+                DeltaScanTaskCore task = taskListIterator.next();
                 splits.add(new DeltaSplit(
                         connectorId,
                         deltaTable.getSchemaName(),
                         deltaTable.getTableName(),
-                        filePath.toString(),
-                        0, /* start */
-                        file.getSize() /* split length - read the entire file in one split */,
-                        file.getSize(),
-                        sanitizePartitionValues(file.getPartitionValues())));
+                        task));
             }
 
-            return completedFuture(new ConnectorSplitBatch(splits, !fileListIterator.hasNext()));
+            return completedFuture(new ConnectorSplitBatch(splits, !taskListIterator.hasNext()));
         }
 
         @Override
         public void close()
         {
             try {
-                fileListIterator.close();
+                taskListIterator.close();
             }
             catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -125,7 +113,7 @@ public class DeltaSplitManager
         @Override
         public boolean isFinished()
         {
-            return !fileListIterator.hasNext();
+            return !taskListIterator.hasNext();
         }
     }
 }
