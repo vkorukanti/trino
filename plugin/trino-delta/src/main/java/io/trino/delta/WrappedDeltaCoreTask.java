@@ -15,7 +15,6 @@ package io.trino.delta;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import io.delta.core.internal.DeltaScanTaskCoreImpl;
 import io.delta.standalone.core.DeltaScanTaskCore;
 
 import java.io.ByteArrayInputStream;
@@ -55,10 +54,10 @@ public class WrappedDeltaCoreTask
     {
         try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
                 ObjectInputStream ois = new ObjectInputStream(bis)) {
-            return new WrappedDeltaCoreTask((DeltaScanTaskCoreImpl) ois.readObject());
+            return new WrappedDeltaCoreTask((DeltaScanTaskCore) ois.readObject());
         }
         catch (Exception e) {
-            throw new RuntimeException("TODO");
+            throw new RuntimeException("Failed to deserialize the DeltaScanTaskCore", e);
         }
     }
 }
