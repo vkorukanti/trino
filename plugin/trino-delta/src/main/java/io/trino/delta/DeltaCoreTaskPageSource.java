@@ -56,7 +56,7 @@ public class DeltaCoreTaskPageSource
     private final List<DeltaColumnHandle> columns;
 
     private CloseableIterator<RowBatch> rowBatchIter;
-    private boolean isFinished = false;
+    private boolean isFinished;
 
     public DeltaCoreTaskPageSource(
             HdfsEnvironment hdfsEnvironment,
