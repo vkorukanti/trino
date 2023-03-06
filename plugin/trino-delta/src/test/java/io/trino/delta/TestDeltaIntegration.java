@@ -21,8 +21,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.lang.String.format;
 
@@ -32,6 +35,34 @@ import static java.lang.String.format;
 public class TestDeltaIntegration
         extends AbstractDeltaDistributedQueryTestBase
 {
+    @Test
+    public void readIntTypeDeltaCorePOC()
+    {
+        // Test reading following primitive types from a Delta table (all ints, float, double, decimal, boolean, varchar, varbinary)
+        String testQuery =
+                format("SELECT * FROM \"%s\".\"%s\"", PATH_SCHEMA, goldenTablePath("simple-table"));
+        // H2 query doesn't work for VALUES with multiple rows, use UNION ALL
+        String expResultsQuery =
+                "SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 " +
+                        "UNION ALL SELECT 9";
+        assertQuery(testQuery, expResultsQuery);
+    }
+
+    @Test
+    public void readDVTableDeltaCorePOC()
+    {
+        // Test reading following primitive types from a Delta table (all ints, float, double, decimal, boolean, varchar, varbinary)
+        String testQuery =
+                format("SELECT * FROM \"%s\".\"%s\"", PATH_SCHEMA, goldenTablePath("table-with-dv-small"));
+        // H2 query doesn't work for VALUES with multiple rows, use UNION ALL
+        String expResultsQuery = Joiner.on(" UNION ").join(
+                Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8)
+                        .stream()
+                        .map(i -> format("SELECT %d", i))
+                        .collect(Collectors.toList()));
+        assertQuery(testQuery, expResultsQuery);
+    }
+
     @Test
     public void readPrimitiveTypeData()
     {

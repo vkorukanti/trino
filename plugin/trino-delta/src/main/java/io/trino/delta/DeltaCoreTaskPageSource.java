@@ -56,6 +56,7 @@ public class DeltaCoreTaskPageSource
     private final List<DeltaColumnHandle> columns;
 
     private CloseableIterator<RowBatch> rowBatchIter;
+    private boolean isFinished = false;
 
     public DeltaCoreTaskPageSource(
             HdfsEnvironment hdfsEnvironment,
@@ -86,7 +87,7 @@ public class DeltaCoreTaskPageSource
     @Override
     public boolean isFinished()
     {
-        return false;
+        return isFinished;
     }
 
     @Override
@@ -96,6 +97,7 @@ public class DeltaCoreTaskPageSource
             rowBatchIter = task.getDataAsRows();
         }
         if (!rowBatchIter.hasNext()) {
+            isFinished = true;
             return null;
         }
         RowBatch nextBatch = rowBatchIter.next();
