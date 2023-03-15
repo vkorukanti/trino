@@ -15,10 +15,14 @@ package io.trino.delta;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.trino.plugin.hive.HiveColumnHandle;
 import io.trino.spi.connector.ColumnHandle;
+import io.trino.spi.type.Type;
+import io.trino.spi.type.TypeManager;
 import io.trino.spi.type.TypeSignature;
 
 import java.util.Objects;
+import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
@@ -33,9 +37,21 @@ public final class DeltaColumnHandle
 
     public enum ColumnType
     {
-        REGULAR,
-        PARTITION,
-        SUBFIELD,
+        REGULAR(HiveColumnHandle.ColumnType.REGULAR),
+        PARTITION(HiveColumnHandle.ColumnType.PARTITION_KEY),
+        SUBFIELD(HiveColumnHandle.ColumnType.SYNTHESIZED);
+
+        private final HiveColumnHandle.ColumnType hiveColumnType;
+
+        ColumnType(HiveColumnHandle.ColumnType hiveColumnType)
+        {
+            this.hiveColumnType = requireNonNull(hiveColumnType, "hiveColumnType is null");
+        }
+
+        public HiveColumnHandle.ColumnType toHiveColumnType()
+        {
+            return hiveColumnType;
+        }
     }
 
     @JsonCreator
@@ -102,6 +118,19 @@ public final class DeltaColumnHandle
                 name.equals(that.name) &&
                 dataType.equals(that.dataType) &&
                 columnType == that.columnType;
+    }
+
+    public HiveColumnHandle toHiveColumnHandle(TypeManager typeManager)
+    {
+        Type type = typeManager.getType(dataType);
+        return new HiveColumnHandle(
+                name, // this name is used for accessing Parquet files, so it should be physical name
+                0, // hiveColumnIndex; we provide fake value because we always find columns by name
+                DeltaHiveTypeTranslator.toHiveType(type),
+                type,
+                Optional.empty(),
+                columnType.toHiveColumnType(),
+                Optional.empty());
     }
 
     @Override

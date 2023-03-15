@@ -16,10 +16,9 @@ package io.trino.delta;
 import com.google.inject.Injector;
 import io.airlift.bootstrap.Bootstrap;
 import io.airlift.json.JsonModule;
+import io.trino.hdfs.authentication.HdfsAuthenticationModule;
 import io.trino.plugin.base.CatalogName;
-import io.trino.plugin.hive.HiveHdfsModule;
 import io.trino.plugin.hive.NodeVersion;
-import io.trino.plugin.hive.authentication.HdfsAuthenticationModule;
 import io.trino.plugin.hive.azure.HiveAzureModule;
 import io.trino.plugin.hive.gcs.HiveGcsModule;
 import io.trino.plugin.hive.metastore.HiveMetastoreModule;
@@ -28,7 +27,6 @@ import io.trino.spi.NodeManager;
 import io.trino.spi.connector.Connector;
 import io.trino.spi.connector.ConnectorContext;
 import io.trino.spi.connector.ConnectorFactory;
-import io.trino.spi.connector.ConnectorHandleResolver;
 
 import java.util.Map;
 import java.util.Optional;
@@ -46,12 +44,6 @@ public class DeltaConnectorFactory
     }
 
     @Override
-    public ConnectorHandleResolver getHandleResolver()
-    {
-        return new DeltaConnectionHandleResolver();
-    }
-
-    @Override
     public Connector create(String catalogName, Map<String, String> requiredConfig, ConnectorContext context)
     {
         requireNonNull(requiredConfig, "requiredConfig is null");
@@ -62,7 +54,7 @@ public class DeltaConnectorFactory
                     new HiveS3Module(),
                     new HiveAzureModule(),
                     new HiveGcsModule(),
-                    new HiveHdfsModule(),
+                    new HdfsAuthenticationModule(),
                     new HdfsAuthenticationModule(),
                     new HiveMetastoreModule(Optional.empty()),
                     binder -> {

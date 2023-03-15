@@ -1,23 +1,33 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>367-SNAPSHOT</version>
+        <version>411-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>trino-delta</artifactId>
-    <description>Trino - Delta Table Connector</description>
+    <description>Trino - Delta Lake Connector</description>
     <packaging>trino-plugin</packaging>
 
     <properties>
         <air.main.basedir>${project.parent.basedir}</air.main.basedir>
-        <enforcer.skip>true</enforcer.skip>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-filesystem</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-hdfs</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-hive</artifactId>
@@ -32,11 +42,6 @@
                     <artifactId>event</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>io.trino</groupId>
-            <artifactId>trino-memory-context</artifactId>
         </dependency>
 
         <dependency>
@@ -109,7 +114,7 @@
         <dependency>
             <groupId>io.delta</groupId>
             <artifactId>delta-standalone_2.12</artifactId>
-            <version>0.3.0-SNAPSHOT</version> <!-- temporary until 0.3.0 is released -->
+            <version>0.6.0-SNAPSHOT</version> <!-- temporary until 0.3.0 is released -->
             <exclusions>
                 <exclusion>
                     <groupId>com.fasterxml.jackson.module</groupId>
@@ -126,6 +131,10 @@
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-databind</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.scala-lang.modules</groupId>
+                    <artifactId>scala-collection-compat_2.12</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -148,7 +157,7 @@
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
-            <version>2.12.11</version>
+            <version>2.12.13</version>
         </dependency>
 
         <dependency>
@@ -241,11 +250,11 @@
             <scope>test</scope>
         </dependency>
 
-        <dependency>
-            <groupId>javax.servlet</groupId>
-            <artifactId>javax.servlet-api</artifactId>
-            <scope>test</scope>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>javax.servlet</groupId>-->
+<!--            <artifactId>javax.servlet-api</artifactId>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
 
         <dependency>
             <groupId>org.testng</groupId>

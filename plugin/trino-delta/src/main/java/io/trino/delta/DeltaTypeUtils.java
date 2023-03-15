@@ -34,7 +34,7 @@ import io.delta.standalone.types.StructType;
 import io.delta.standalone.types.TimestampType;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaTableName;
-import io.trino.spi.type.Decimals;
+import io.trino.spi.type.Int128;
 import io.trino.spi.type.NamedTypeSignature;
 import io.trino.spi.type.RowFieldName;
 import io.trino.spi.type.Type;
@@ -62,8 +62,6 @@ import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DateType.DATE;
 import static io.trino.spi.type.DecimalType.createDecimalType;
-import static io.trino.spi.type.Decimals.isLongDecimal;
-import static io.trino.spi.type.Decimals.isShortDecimal;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.IntegerType.INTEGER;
 import static io.trino.spi.type.RealType.REAL;
@@ -80,6 +78,7 @@ import static java.lang.Float.floatToRawIntBits;
 import static java.lang.Float.parseFloat;
 import static java.lang.Long.parseLong;
 import static java.lang.String.format;
+import static java.math.RoundingMode.UNNECESSARY;
 
 /**
  * Contains utility methods to convert Delta data types (and data values) to Trino data types (and data values)
@@ -96,7 +95,6 @@ public class DeltaTypeUtils
      * @param tableName Used in error messages when an unsupported data type is encountered.
      * @param columnName Used in error messages when an unsupported data type is encountered.
      * @param deltaType Data type to convert
-     * @return
      */
     public static TypeSignature convertDeltaDataTypeTrinoDataType(SchemaTableName tableName, String columnName, DataType deltaType)
     {
@@ -176,15 +174,14 @@ public class DeltaTypeUtils
             if (type.equals(VarbinaryType.VARBINARY)) {
                 return utf8Slice(valueString);
             }
-            if (isShortDecimal(type) || isLongDecimal(type)) {
-                io.trino.spi.type.DecimalType decimalType = (io.trino.spi.type.DecimalType) type;
+            if (type instanceof io.trino.spi.type.DecimalType decimalType) {
                 BigDecimal decimal = new BigDecimal(valueString);
-                decimal = decimal.setScale(decimalType.getScale(), BigDecimal.ROUND_UNNECESSARY);
+                decimal = decimal.setScale(decimalType.getScale(), UNNECESSARY);
                 if (decimal.precision() > decimalType.getPrecision()) {
                     throw new IllegalArgumentException();
                 }
                 BigInteger unscaledValue = decimal.unscaledValue();
-                return isShortDecimal(type) ? unscaledValue.longValue() : Decimals.encodeUnscaledValue(unscaledValue);
+                return decimalType.isShort() ? unscaledValue.longValue() : Int128.valueOf(unscaledValue);
             }
             if (type.equals(DATE)) {
                 return LocalDate.parse(valueString, DateTimeFormatter.ISO_LOCAL_DATE).toEpochDay();

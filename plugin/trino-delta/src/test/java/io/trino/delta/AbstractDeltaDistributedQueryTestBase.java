@@ -107,7 +107,7 @@ public abstract class AbstractDeltaDistributedQueryTestBase
         Map<String, String> deltaProperties = ImmutableMap.<String, String>builder()
                 .put("hive.metastore", "file")
                 .put("hive.metastore.catalog.dir", catalogDir.toFile().toURI().toString())
-                .build();
+                .buildOrThrow();
         queryRunner.createCatalog(DELTA_CATALOG, "delta", deltaProperties);
 
         // Install a Hive connector catalog that uses the same metastore as Delta
@@ -119,7 +119,7 @@ public abstract class AbstractDeltaDistributedQueryTestBase
                 .put("hive.metastore.catalog.dir", catalogDir.toFile().toURI().toString())
                 .put("hive.allow-drop-table", "true")
                 .put("hive.security", "legacy")
-                .build();
+                .buildOrThrow();
         queryRunner.createCatalog(HIVE_CATALOG, "hive-hadoop2", hiveProperties);
         queryRunner.execute(format("CREATE SCHEMA %s.%s", HIVE_CATALOG, DELTA_SCHEMA));
 

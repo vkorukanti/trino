@@ -16,22 +16,16 @@ package io.trino.delta;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import io.trino.memory.context.AggregatedMemoryContext;
-import io.trino.parquet.Field;
-import io.trino.parquet.ParquetCorruptionException;
-import io.trino.parquet.ParquetDataSource;
-import io.trino.parquet.ParquetDataSourceId;
+import com.google.common.collect.ImmutableSet;
+import io.trino.filesystem.TrinoFileSystemFactory;
+import io.trino.filesystem.TrinoInputFile;
+import io.trino.hdfs.HdfsContext;
+import io.trino.hdfs.HdfsEnvironment;
 import io.trino.parquet.ParquetReaderOptions;
-import io.trino.parquet.RichColumnDescriptor;
-import io.trino.parquet.predicate.Predicate;
-import io.trino.parquet.reader.MetadataReader;
-import io.trino.parquet.reader.ParquetReader;
 import io.trino.plugin.hive.FileFormatDataSourceStats;
-import io.trino.plugin.hive.HdfsEnvironment;
-import io.trino.plugin.hive.HdfsEnvironment.HdfsContext;
-import io.trino.plugin.hive.parquet.HdfsParquetDataSource;
-import io.trino.plugin.hive.parquet.ParquetPageSource;
-import io.trino.spi.TrinoException;
+import io.trino.plugin.hive.HiveColumnHandle;
+import io.trino.plugin.hive.ReaderPageSource;
+import io.trino.plugin.hive.parquet.ParquetPageSourceFactory;
 import io.trino.spi.block.Block;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ConnectorPageSource;
@@ -44,65 +38,43 @@ import io.trino.spi.connector.DynamicFilter;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.predicate.Utils;
-import io.trino.spi.security.ConnectorIdentity;
+import io.trino.spi.type.StandardTypes;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.security.AccessControlException;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.hadoop.metadata.BlockMetaData;
-import org.apache.parquet.hadoop.metadata.FileMetaData;
-import org.apache.parquet.hadoop.metadata.ParquetMetadata;
-import org.apache.parquet.io.MessageColumnIO;
 import org.apache.parquet.schema.MessageType;
+import org.joda.time.DateTimeZone;
 
 import javax.inject.Inject;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Strings.nullToEmpty;
 import static io.trino.delta.DeltaColumnHandle.ColumnType.PARTITION;
-import static io.trino.delta.DeltaColumnHandle.ColumnType.REGULAR;
-import static io.trino.delta.DeltaColumnHandle.ColumnType.SUBFIELD;
-import static io.trino.delta.DeltaErrorCode.DELTA_BAD_DATA;
-import static io.trino.delta.DeltaErrorCode.DELTA_CANNOT_OPEN_SPLIT;
-import static io.trino.delta.DeltaErrorCode.DELTA_MISSING_DATA;
 import static io.trino.delta.DeltaTypeUtils.convertPartitionValue;
-import static io.trino.memory.context.AggregatedMemoryContext.newSimpleAggregatedMemoryContext;
-import static io.trino.parquet.ParquetTypeUtils.getColumnIO;
-import static io.trino.parquet.ParquetTypeUtils.getDescriptors;
 import static io.trino.parquet.ParquetTypeUtils.getParquetTypeByName;
-import static io.trino.parquet.ParquetTypeUtils.lookupColumnByName;
-import static io.trino.parquet.predicate.PredicateUtils.buildPredicate;
-import static io.trino.parquet.predicate.PredicateUtils.predicateMatches;
-import static io.trino.plugin.hive.parquet.HiveParquetColumnIOConverter.constructField;
-import static io.trino.spi.StandardErrorCode.PERMISSION_DENIED;
-import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class DeltaPageSourceProvider
         implements ConnectorPageSourceProvider
 {
+    private final TrinoFileSystemFactory fileSystemFactory;
     private final HdfsEnvironment hdfsEnvironment;
     private final TypeManager typeManager;
     private final FileFormatDataSourceStats fileFormatDataSourceStats;
 
     @Inject
     public DeltaPageSourceProvider(
+            TrinoFileSystemFactory fileSystemFactory,
             HdfsEnvironment hdfsEnvironment,
             TypeManager typeManager,
             FileFormatDataSourceStats fileFormatDataSourceStats)
     {
+        this.fileSystemFactory = requireNonNull(fileSystemFactory, "fileSystemFactory is null");
         this.hdfsEnvironment = requireNonNull(hdfsEnvironment, "hdfsEnvironment is null");
         this.typeManager = requireNonNull(typeManager, "typeManager is null");
         this.fileFormatDataSourceStats = requireNonNull(fileFormatDataSourceStats, "fileFormatDataSourceStats is null");
@@ -130,14 +102,14 @@ public class DeltaPageSourceProvider
                 .filter(columnHandle -> columnHandle.getColumnType() != PARTITION)
                 .collect(Collectors.toList());
 
-        ConnectorPageSource dataPageSource = createParquetPageSource(
-                hdfsEnvironment,
-                session.getIdentity(),
-                hdfsEnvironment.getConfiguration(hdfsContext, filePath),
-                filePath,
+        TrinoInputFile inputFile = fileSystemFactory.create(session).newInputFile(
+                deltaSplit.getFilePath(),
+                deltaSplit.getFileSize());
+
+        ReaderPageSource dataPageSource = createParquetPageSource(
+                inputFile,
                 deltaSplit.getStart(),
                 deltaSplit.getLength(),
-                deltaSplit.getFileSize(),
                 regularColumnHandles,
                 typeManager,
                 deltaTableHandle.getPredicate(),
@@ -146,7 +118,7 @@ public class DeltaPageSourceProvider
         return new DeltaPageSource(
                 deltaColumnHandles,
                 convertPartitionValues(deltaColumnHandles, deltaSplit.getPartitionValues()),
-                dataPageSource);
+                dataPageSource.get());
     }
 
     /**
@@ -171,133 +143,63 @@ public class DeltaPageSourceProvider
                         }));
     }
 
-    private static ConnectorPageSource createParquetPageSource(
-            HdfsEnvironment hdfsEnvironment,
-            ConnectorIdentity identity,
-            Configuration configuration,
-            Path path,
+    private static ReaderPageSource createParquetPageSource(
+            TrinoInputFile inputFile,
             long start,
             long length,
-            long fileSize,
             List<DeltaColumnHandle> columns,
             TypeManager typeManager,
             TupleDomain<DeltaColumnHandle> effectivePredicate,
             FileFormatDataSourceStats stats)
     {
-        AggregatedMemoryContext systemMemoryContext = newSimpleAggregatedMemoryContext();
-
-        ParquetDataSource dataSource = null;
-        try {
-            FSDataInputStream inputStream = hdfsEnvironment
-                    .getFileSystem(identity, path, configuration)
-                    .open(path);
-            ParquetReaderOptions readerOptions = new ParquetReaderOptions();
-            dataSource = new HdfsParquetDataSource(new ParquetDataSourceId(path.toString()), fileSize, inputStream, stats, readerOptions);
-            ParquetMetadata parquetMetadata = MetadataReader.readFooter(dataSource);
-
-            FileMetaData fileMetaData = parquetMetadata.getFileMetaData();
-            MessageType fileSchema = fileMetaData.getSchema();
-
-            Optional<MessageType> message = columns.stream()
-                    .filter(column -> column.getColumnType() == REGULAR)
-                    .map(column -> getParquetType(fileSchema, column))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .map(type -> new MessageType(fileSchema.getName(), type))
-                    .reduce(MessageType::union);
-
-            MessageType requestedSchema = message
-                    .orElse(new MessageType(fileSchema.getName(), ImmutableList.of()));
-
-            ImmutableList.Builder<BlockMetaData> footerBlocks = ImmutableList.builder();
-            for (BlockMetaData block : parquetMetadata.getBlocks()) {
-                long firstDataPage = block.getColumns().get(0).getFirstDataPageOffset();
-                if (firstDataPage >= start && firstDataPage < start + length) {
-                    footerBlocks.add(block);
-                }
-            }
-
-            Map<List<String>, RichColumnDescriptor> descriptorsByPath = getDescriptors(fileSchema, requestedSchema);
-            TupleDomain<ColumnDescriptor> parquetTupleDomain = getParquetTupleDomain(descriptorsByPath, effectivePredicate);
-            Predicate parquetPredicate = buildPredicate(requestedSchema, parquetTupleDomain, descriptorsByPath, UTC);
-            final ParquetDataSource finalDataSource = dataSource;
-            ImmutableList.Builder<BlockMetaData> blocks = ImmutableList.builder();
-            for (BlockMetaData block : footerBlocks.build()) {
-                if (predicateMatches(
-                        parquetPredicate,
-                        block,
-                        finalDataSource,
-                        descriptorsByPath,
-                        parquetTupleDomain)) {
-                    blocks.add(block);
-                }
-            }
-            MessageColumnIO messageColumnIO = getColumnIO(fileSchema, requestedSchema);
-            ParquetReader parquetReader = new ParquetReader(
-                    Optional.ofNullable(fileMetaData.getCreatedBy()),
-                    messageColumnIO,
-                    blocks.build(),
-                    Optional.empty(),
-                    dataSource,
-                    UTC,
-                    systemMemoryContext,
-                    readerOptions);
-
-            ImmutableList.Builder<String> namesBuilder = ImmutableList.builder();
-            ImmutableList.Builder<Type> typesBuilder = ImmutableList.builder();
-            ImmutableList.Builder<Optional<Field>> fieldsBuilder = ImmutableList.builder();
-            for (DeltaColumnHandle column : columns) {
-                checkArgument(column.getColumnType() == REGULAR || column.getColumnType() == SUBFIELD,
-                        "column type must be regular or subfield column");
-
-                String name = column.getName();
-                Type type = typeManager.getType(column.getDataType());
-
-                namesBuilder.add(name);
-                typesBuilder.add(type);
-
-                if (getParquetType(fileSchema, column).isPresent()) {
-                    String columnName = name;
-                    fieldsBuilder.add(constructField(type, lookupColumnByName(messageColumnIO, columnName)));
-                }
-                else {
-                    fieldsBuilder.add(Optional.empty());
-                }
-            }
-            return new ParquetPageSource(
-                    parquetReader,
-                    typesBuilder.build(),
-                    fieldsBuilder.build());
+        ParquetReaderOptions options = new ParquetReaderOptions();
+        ImmutableSet.Builder<String> missingColumnNames = ImmutableSet.builder();
+        ImmutableList.Builder<HiveColumnHandle> hiveColumnHandles = ImmutableList.builder();
+        for (DeltaColumnHandle column : columns) {
+            toHiveColumnHandle(column, typeManager).ifPresentOrElse(
+                    hiveColumnHandles::add,
+                    () -> missingColumnNames.add(column.getName()));
         }
-        catch (Exception e) {
-            try {
-                if (dataSource != null) {
-                    dataSource.close();
-                }
-            }
-            catch (IOException ignored) {
-            }
-            if (e instanceof TrinoException) {
-                throw (TrinoException) e;
-            }
-            if (e instanceof ParquetCorruptionException) {
-                throw new TrinoException(DELTA_BAD_DATA, e);
-            }
-            if (e instanceof AccessControlException) {
-                throw new TrinoException(PERMISSION_DENIED, e.getMessage(), e);
-            }
-            if (nullToEmpty(e.getMessage()).trim().equals("Filesystem closed") || e instanceof FileNotFoundException) {
-                throw new TrinoException(DELTA_CANNOT_OPEN_SPLIT, e);
-            }
-            String message = format("Error opening Hive split %s (offset=%s, length=%s): %s", path, start, length, e.getMessage());
-            if (e.getClass().getSimpleName().equals("BlockMissingException")) {
-                throw new TrinoException(DELTA_MISSING_DATA, message, e);
-            }
-            throw new TrinoException(DELTA_CANNOT_OPEN_SPLIT, message, e);
-        }
+
+        TupleDomain<HiveColumnHandle> parquetPredicate =
+                getParquetTupleDomain(effectivePredicate, typeManager);
+
+        return ParquetPageSourceFactory.createPageSource(
+                inputFile,
+                start,
+                length,
+                hiveColumnHandles.build(),
+                parquetPredicate,
+                true,
+                DateTimeZone.getDefault(),
+                stats,
+                options,
+                Optional.empty(),
+                100);
     }
 
-    public static TupleDomain<ColumnDescriptor> getParquetTupleDomain(Map<List<String>, RichColumnDescriptor> descriptorsByPath, TupleDomain<DeltaColumnHandle> effectivePredicate)
+    public static TupleDomain<HiveColumnHandle> getParquetTupleDomain(
+            TupleDomain<DeltaColumnHandle> effectivePredicate,
+            TypeManager typeManager)
+    {
+        if (effectivePredicate.isNone()) {
+            return TupleDomain.none();
+        }
+
+        ImmutableMap.Builder<HiveColumnHandle, Domain> predicate = ImmutableMap.builder();
+        effectivePredicate.getDomains().get().forEach((columnHandle, domain) -> {
+            String baseType = columnHandle.getDataType().getBase();
+            // skip looking up predicates for complex types as Parquet only stores stats for primitives
+            if (!baseType.equals(StandardTypes.MAP) && !baseType.equals(StandardTypes.ARRAY) && !baseType.equals(StandardTypes.ROW)) {
+                Optional<HiveColumnHandle> hiveColumnHandle =
+                        toHiveColumnHandle(columnHandle, typeManager);
+                hiveColumnHandle.ifPresent(column -> predicate.put(column, domain));
+            }
+        });
+        return TupleDomain.withColumnDomains(predicate.buildOrThrow());
+    }
+
+    public static TupleDomain<ColumnDescriptor> getParquetTupleDomain(Map<List<String>, ColumnDescriptor> descriptorsByPath, TupleDomain<DeltaColumnHandle> effectivePredicate)
     {
         if (effectivePredicate.isNone()) {
             return TupleDomain.none();
@@ -307,12 +209,12 @@ public class DeltaPageSourceProvider
         for (Map.Entry<DeltaColumnHandle, Domain> entry : effectivePredicate.getDomains().get().entrySet()) {
             DeltaColumnHandle columnHandle = entry.getKey();
 
-            RichColumnDescriptor descriptor = descriptorsByPath.get(ImmutableList.of(columnHandle.getName()));
+            ColumnDescriptor descriptor = descriptorsByPath.get(ImmutableList.of(columnHandle.getName()));
             if (descriptor != null) {
                 predicate.put(descriptor, entry.getValue());
             }
         }
-        return TupleDomain.withColumnDomains(predicate.build());
+        return TupleDomain.withColumnDomains(predicate.buildOrThrow());
     }
 
     public static Optional<org.apache.parquet.schema.Type> getParquetType(
@@ -321,5 +223,12 @@ public class DeltaPageSourceProvider
     {
         org.apache.parquet.schema.Type type = getParquetTypeByName(column.getName(), messageType);
         return Optional.of(type);
+    }
+
+    public static Optional<HiveColumnHandle> toHiveColumnHandle(
+            DeltaColumnHandle deltaLakeColumnHandle,
+            TypeManager typeManager)
+    {
+        return Optional.of(deltaLakeColumnHandle.toHiveColumnHandle(typeManager));
     }
 }

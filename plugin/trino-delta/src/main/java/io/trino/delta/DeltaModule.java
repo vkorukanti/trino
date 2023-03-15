@@ -20,14 +20,8 @@ import com.google.inject.Module;
 import com.google.inject.Provides;
 import com.google.inject.Scopes;
 import io.trino.plugin.base.CatalogName;
-import io.trino.plugin.hive.DynamicConfigurationProvider;
 import io.trino.plugin.hive.FileFormatDataSourceStats;
-import io.trino.plugin.hive.HdfsConfiguration;
-import io.trino.plugin.hive.HdfsConfigurationInitializer;
-import io.trino.plugin.hive.HdfsEnvironment;
 import io.trino.plugin.hive.HiveConfig;
-import io.trino.plugin.hive.HiveHdfsConfiguration;
-import io.trino.plugin.hive.metastore.MetastoreConfig;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeId;
 import io.trino.spi.type.TypeManager;
@@ -37,7 +31,6 @@ import javax.inject.Singleton;
 
 import java.util.concurrent.ExecutorService;
 
-import static com.google.inject.multibindings.Multibinder.newSetBinder;
 import static io.airlift.concurrent.Threads.daemonThreadsNamed;
 import static io.airlift.configuration.ConfigBinder.configBinder;
 import static io.airlift.json.JsonBinder.jsonBinder;
@@ -74,13 +67,7 @@ public class DeltaModule
         binder.bind(DeltaSessionProperties.class).in(Scopes.SINGLETON);
         configBinder(binder).bindConfig(DeltaConfig.class);
 
-        configBinder(binder).bindConfig(MetastoreConfig.class);
         configBinder(binder).bindConfig(HiveConfig.class);
-
-        binder.bind(HdfsConfigurationInitializer.class).in(Scopes.SINGLETON);
-        binder.bind(HdfsConfiguration.class).to(HiveHdfsConfiguration.class).in(Scopes.SINGLETON);
-        newSetBinder(binder, DynamicConfigurationProvider.class);
-        binder.bind(HdfsEnvironment.class).in(Scopes.SINGLETON);
 
         jsonBinder(binder).addDeserializerBinding(Type.class).to(TypeDeserializer.class);
         jsonCodecBinder(binder).bindMapJsonCodec(String.class, listJsonCodec(DeltaTable.class));

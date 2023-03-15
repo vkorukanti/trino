@@ -17,7 +17,6 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.log.Logger;
-import io.trino.plugin.hive.authentication.HiveIdentity;
 import io.trino.plugin.hive.metastore.HiveMetastore;
 import io.trino.plugin.hive.metastore.Storage;
 import io.trino.plugin.hive.metastore.Table;
@@ -26,8 +25,6 @@ import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.connector.ConnectorMetadata;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorTableHandle;
-import io.trino.spi.connector.ConnectorTableLayout;
-import io.trino.spi.connector.ConnectorTableLayoutHandle;
 import io.trino.spi.connector.ConnectorTableMetadata;
 import io.trino.spi.connector.ConnectorTableProperties;
 import io.trino.spi.connector.Constraint;
@@ -115,7 +112,6 @@ public class DeltaMetadata
         }
         else {
             Optional<Table> metastoreTable = metastore.getTable(
-                    new HiveIdentity(session),
                     schemaName,
                     deltaTableName.getTableNameOrPath());
             if (!metastoreTable.isPresent()) {
@@ -150,12 +146,6 @@ public class DeltaMetadata
             return new DeltaTableHandle(connectorId, table.get(), TupleDomain.all(), Optional.empty());
         }
         return null;
-    }
-
-    @Override
-    public boolean usesLegacyTableLayouts()
-    {
-        return false;
     }
 
     @Override
@@ -206,12 +196,6 @@ public class DeltaMetadata
     }
 
     @Override
-    public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
-    {
-        return new ConnectorTableLayout(handle);
-    }
-
-    @Override
     public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table)
     {
         DeltaTableHandle deltaTableHandle = (DeltaTableHandle) table;
@@ -249,7 +233,7 @@ public class DeltaMetadata
                             column.getType(),
                             column.isPartition() ? PARTITION : REGULAR));
         }
-        return columnHandles.build();
+        return columnHandles.buildOrThrow();
     }
 
     @Override
@@ -264,7 +248,7 @@ public class DeltaMetadata
                 columns.put(tableName, tableMetadata.getColumns());
             }
         }
-        return columns.build();
+        return columns.buildOrThrow();
     }
 
     private ConnectorTableMetadata getTableMetadata(ConnectorSession session, SchemaTableName tableName)

@@ -16,7 +16,6 @@ package io.trino.delta;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.trino.Session;
-import io.trino.cost.PlanNodeStatsEstimate;
 import io.trino.cost.StatsProvider;
 import io.trino.execution.warnings.WarningCollector;
 import io.trino.metadata.Metadata;
@@ -176,7 +175,8 @@ public class TestDeltaScanOptimizations
                         assertPlan(
                                 session,
                                 getQueryRunner().getMetadata(),
-                                (node, sourceStats, lookup, ignore, types) -> PlanNodeStatsEstimate.unknown(),
+                                getQueryRunner().getFunctionManager(),
+                                getQueryRunner().getStatsCalculator(),
                                 plan,
                                 anyTree(tableScanWithConstraints(
                                         tableName,

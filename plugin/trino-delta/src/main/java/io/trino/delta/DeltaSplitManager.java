@@ -15,13 +15,13 @@ package io.trino.delta;
 
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.data.CloseableIterator;
-import io.trino.spi.connector.ConnectorPartitionHandle;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorSplit;
 import io.trino.spi.connector.ConnectorSplitManager;
 import io.trino.spi.connector.ConnectorSplitSource;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.ConnectorTransactionHandle;
+import io.trino.spi.connector.Constraint;
 import io.trino.spi.connector.DynamicFilter;
 import io.trino.spi.type.TypeManager;
 import org.apache.hadoop.fs.Path;
@@ -65,8 +65,8 @@ public class DeltaSplitManager
             ConnectorTransactionHandle transaction,
             ConnectorSession session,
             ConnectorTableHandle table,
-            SplitSchedulingStrategy splitSchedulingStrategy,
-            DynamicFilter dynamicFilter)
+            DynamicFilter dynamicFilter,
+            Constraint constraint)
     {
         DeltaTableHandle tableHandle = (DeltaTableHandle) table;
         return new DeltaSplitSource(session, tableHandle);
@@ -91,7 +91,7 @@ public class DeltaSplitManager
         }
 
         @Override
-        public CompletableFuture<ConnectorSplitBatch> getNextBatch(ConnectorPartitionHandle partitionHandle, int maxSize)
+        public CompletableFuture<ConnectorSplitBatch> getNextBatch(int maxSize)
         {
             List<ConnectorSplit> splits = new ArrayList<>();
             while (fileListIterator.hasNext() && splits.size() < maxSize && splits.size() < maxBatchSize) {

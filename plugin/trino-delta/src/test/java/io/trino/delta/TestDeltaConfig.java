@@ -17,8 +17,6 @@ import com.google.common.collect.ImmutableMap;
 import io.airlift.configuration.testing.ConfigAssertions;
 import org.testng.annotations.Test;
 
-import java.util.Map;
-
 public class TestDeltaConfig
 {
     @Test
@@ -34,12 +32,12 @@ public class TestDeltaConfig
     @Test
     public void testExplicitPropertyMappings()
     {
-        Map<String, String> properties = new ImmutableMap.Builder<String, String>()
+        ImmutableMap<String, String> properties = ImmutableMap.<String, String>builder()
                 .put("delta.partition-pruning-enabled", "false")
                 .put("delta.filter-pushdown-enabled", "false")
                 .put("delta.max-splits-batch-size", "400")
                 .put("delta.projection-pushdown-enabled", "false")
-                .build();
+                .buildOrThrow();
 
         DeltaConfig expected = new DeltaConfig()
                 .setFilterPushdownEnabled(false)

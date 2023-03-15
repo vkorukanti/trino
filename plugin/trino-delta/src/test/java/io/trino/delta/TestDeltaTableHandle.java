@@ -122,7 +122,6 @@ public class TestDeltaTableHandle
                 .quiet()
                 .initialize();
         HandleResolver handleResolver = injector.getInstance(HandleResolver.class);
-        handleResolver.addCatalogHandleResolver("delta", new DeltaConnectionHandleResolver());
         return injector.getInstance(new Key<>()
         {
         });

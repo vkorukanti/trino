@@ -73,7 +73,8 @@ public class DeltaPageSource
             for (DeltaColumnHandle columnHandle : columnHandles) {
                 if (columnHandle.getColumnType() == PARTITION) {
                     Block partitionValue = partitionValues.get(columnHandle.getName());
-                    blocksWithPartitionColumns[columnIndex++] = new RunLengthEncodedBlock(partitionValue, positionCount);
+                    blocksWithPartitionColumns[columnIndex++] =
+                            RunLengthEncodedBlock.create(partitionValue, positionCount);
                 }
                 else {
                     blocksWithPartitionColumns[columnIndex++] = (dataPage.getBlock(dataColumnIndex));
@@ -125,9 +126,9 @@ public class DeltaPageSource
     }
 
     @Override
-    public long getSystemMemoryUsage()
+    public long getMemoryUsage()
     {
-        return dataPageSource.getSystemMemoryUsage();
+        return dataPageSource.getMemoryUsage();
     }
 
     @Override
