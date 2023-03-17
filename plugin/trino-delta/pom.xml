@@ -175,12 +175,64 @@
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-databind</artifactId>
                 </exclusion>
+<!--                <exclusion>-->
+<!--                    <groupId>org.apache.arrow</groupId>-->
+<!--                    <artifactId>arrow-c-data</artifactId>-->
+<!--                </exclusion>-->
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-memory-core</artifactId>
+            <version>11.0.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.module</groupId>
+                    <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.datatype</groupId>
+                    <artifactId>jackson-datatype-jsr310</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-databind</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
         <dependency>
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-memory-unsafe</artifactId>
+            <version>11.0.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.module</groupId>
+                    <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.datatype</groupId>
+                    <artifactId>jackson-datatype-jsr310</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-databind</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-vector</artifactId>
             <version>11.0.0</version>
             <exclusions>
                 <exclusion>
@@ -329,6 +381,7 @@
                         <ignoredDependency>org.apache.arrow:arrow-format:jar</ignoredDependency>
                         <ignoredDependency>org.apache.arrow:arrow-vector:jar</ignoredDependency>
                         <ignoredDependency>org.apache.arrow:arrow-dataset:jar</ignoredDependency>
+                        <ignoredDependency>org.apache.arrow:arrow-memory-core:jar</ignoredDependency>
                         <ignoredDependency>org.apache.arrow:arrow-memory-unsafe:jar</ignoredDependency>
                         <ignoredDependency>org.apache.arrow:arrow-memory-netty:jar</ignoredDependency>
                         <ignoredDependency>org.roaringbitmap:RoaringBitmap:jar</ignoredDependency>

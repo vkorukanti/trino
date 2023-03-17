@@ -255,7 +255,6 @@ public class DeltaPageSourceProvider
     {
         return new DeltaCoreTaskPageSource(
                 hdfsEnvironment,
-                identity,
                 configuration,
                 task,
                 columns);

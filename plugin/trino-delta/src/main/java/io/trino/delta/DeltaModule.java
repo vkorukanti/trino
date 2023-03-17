@@ -16,9 +16,9 @@ package io.trino.delta;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.deser.std.FromStringDeserializer;
 import com.google.inject.Binder;
-import com.google.inject.Module;
 import com.google.inject.Provides;
 import com.google.inject.Scopes;
+import io.airlift.configuration.AbstractConfigurationAwareModule;
 import io.trino.plugin.base.CatalogName;
 import io.trino.plugin.hive.FileFormatDataSourceStats;
 import io.trino.plugin.hive.HiveConfig;
@@ -42,7 +42,7 @@ import static org.weakref.jmx.ObjectNames.generatedNameOf;
 import static org.weakref.jmx.guice.ExportBinder.newExporter;
 
 public class DeltaModule
-        implements Module
+        extends AbstractConfigurationAwareModule
 {
     private final String connectorId;
     private final TypeManager typeManager;
@@ -54,7 +54,7 @@ public class DeltaModule
     }
 
     @Override
-    public void configure(Binder binder)
+    protected void setup(Binder binder)
     {
         binder.bind(TypeManager.class).toInstance(typeManager);
 

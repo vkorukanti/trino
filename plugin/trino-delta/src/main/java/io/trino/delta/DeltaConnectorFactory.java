@@ -16,11 +16,14 @@ package io.trino.delta;
 import com.google.inject.Injector;
 import io.airlift.bootstrap.Bootstrap;
 import io.airlift.json.JsonModule;
+import io.trino.filesystem.hdfs.HdfsFileSystemModule;
+import io.trino.hdfs.HdfsModule;
 import io.trino.hdfs.authentication.HdfsAuthenticationModule;
 import io.trino.plugin.base.CatalogName;
 import io.trino.plugin.hive.NodeVersion;
 import io.trino.plugin.hive.azure.HiveAzureModule;
 import io.trino.plugin.hive.gcs.HiveGcsModule;
+import io.trino.plugin.hive.metastore.HiveMetastoreConfig;
 import io.trino.plugin.hive.metastore.HiveMetastoreModule;
 import io.trino.plugin.hive.s3.HiveS3Module;
 import io.trino.spi.NodeManager;
@@ -32,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.google.common.base.Throwables.throwIfUnchecked;
+import static io.airlift.configuration.ConfigBinder.configBinder;
 import static java.util.Objects.requireNonNull;
 
 public class DeltaConnectorFactory
@@ -51,12 +55,21 @@ public class DeltaConnectorFactory
             Bootstrap app = new Bootstrap(
                     new JsonModule(),
                     new DeltaModule(catalogName, context.getTypeManager()),
+                    new HdfsModule(),
+                    binder -> {
+                        configBinder(binder).bindConfig(HiveMetastoreConfig.class);
+                    },
                     new HiveS3Module(),
                     new HiveAzureModule(),
                     new HiveGcsModule(),
-                    new HdfsAuthenticationModule(),
-                    new HdfsAuthenticationModule(),
+//                    binder -> {
+//                        binder.bind(Key.get(boolean.class, HideDeltaLakeTables.class)).toInstance(false);
+//                    },
                     new HiveMetastoreModule(Optional.empty()),
+                    new HdfsAuthenticationModule(),
+                    new HdfsAuthenticationModule(),
+                    new HdfsFileSystemModule(),
+//                    new HiveMetastoreModule(Optional.empty()),
                     binder -> {
                         binder.bind(NodeVersion.class).toInstance(new NodeVersion(context.getNodeManager().getCurrentNode().getVersion()));
                         binder.bind(NodeManager.class).toInstance(context.getNodeManager());

@@ -13,13 +13,9 @@
  */
 package io.trino.delta;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.log.Logger;
-import io.trino.plugin.hive.metastore.HiveMetastore;
-import io.trino.plugin.hive.metastore.Storage;
-import io.trino.plugin.hive.metastore.Table;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.connector.ConnectorMetadata;
@@ -68,7 +64,7 @@ public class DeltaMetadata
 
     private final String connectorId;
     private final DeltaClient deltaClient;
-    private final HiveMetastore metastore;
+    // private final HiveMetastore metastore;
     private final TypeManager typeManager;
     private final DeltaConfig config;
 
@@ -76,13 +72,13 @@ public class DeltaMetadata
     public DeltaMetadata(
             DeltaConnectorId connectorId,
             DeltaClient deltaClient,
-            HiveMetastore metastore,
+            // HiveMetastore metastore,
             TypeManager typeManager,
             DeltaConfig config)
     {
         this.connectorId = requireNonNull(connectorId, "connectorId is null").toString();
         this.deltaClient = requireNonNull(deltaClient, "deltaClient is null");
-        this.metastore = requireNonNull(metastore, "metastore is null");
+        // this.metastore = requireNonNull(metastore, "metastore is null");
         this.typeManager = requireNonNull(typeManager, "typeManager is null");
         this.config = requireNonNull(config, "config is null");
     }
@@ -111,29 +107,30 @@ public class DeltaMetadata
             tableLocation = deltaTableName.getTableNameOrPath();
         }
         else {
-            Optional<Table> metastoreTable = metastore.getTable(
-                    schemaName,
-                    deltaTableName.getTableNameOrPath());
-            if (!metastoreTable.isPresent()) {
-                return null; // indicates table doesn't exist
-            }
-
-            Map<String, String> tableParameters = metastoreTable.get().getParameters();
-            Storage storage = metastoreTable.get().getStorage();
-            tableLocation = storage.getLocation();
-
-            // Delta table written using Spark and Hive have set the table parameter
-            // "spark.sql.sources.provider = delta". If this property is found table
-            // location is found in SerDe properties with key "path".
-            if ("delta".equalsIgnoreCase(tableParameters.get("spark.sql.sources.provider"))) {
-                tableLocation = storage.getSerdeParameters().get("path");
-                if (Strings.isNullOrEmpty(tableLocation)) {
-                    log.warn("Location key ('path') is missing in SerDe properties for table %s. " +
-                            "Using the 'location' attribute as the table location.", schemaTableName);
-                    // fallback to using the location attribute
-                    tableLocation = storage.getLocation();
-                }
-            }
+            throw new UnsupportedOperationException("NYI");
+//            Optional<Table> metastoreTable = metastore.getTable(
+//                    schemaName,
+//                    deltaTableName.getTableNameOrPath());
+//            if (!metastoreTable.isPresent()) {
+//                return null; // indicates table doesn't exist
+//            }
+//
+//            Map<String, String> tableParameters = metastoreTable.get().getParameters();
+//            Storage storage = metastoreTable.get().getStorage();
+//            tableLocation = storage.getLocation();
+//
+//            // Delta table written using Spark and Hive have set the table parameter
+//            // "spark.sql.sources.provider = delta". If this property is found table
+//            // location is found in SerDe properties with key "path".
+//            if ("delta".equalsIgnoreCase(tableParameters.get("spark.sql.sources.provider"))) {
+//                tableLocation = storage.getSerdeParameters().get("path");
+//                if (Strings.isNullOrEmpty(tableLocation)) {
+//                    log.warn("Location key ('path') is missing in SerDe properties for table %s. " +
+//                            "Using the 'location' attribute as the table location.", schemaTableName);
+//                    // fallback to using the location attribute
+//                    tableLocation = storage.getLocation();
+//                }
+//            }
         }
 
         Optional<DeltaTable> table = deltaClient.getTable(
@@ -209,11 +206,11 @@ public class DeltaMetadata
         List<String> schemaNames = schemaName.isEmpty() ? listSchemaNames(session) : ImmutableList.of(schemaName.get());
 
         ImmutableList.Builder<SchemaTableName> tableNames = ImmutableList.builder();
-        for (String schema : schemaNames) {
-            for (String table : metastore.getAllTables(schema)) {
-                tableNames.add(new SchemaTableName(schema, table));
-            }
-        }
+//        for (String schema : schemaNames) {
+//            for (String table : metastore.getAllTables(schema)) {
+//                tableNames.add(new SchemaTableName(schema, table));
+//            }
+//        }
         return tableNames.build();
     }
 

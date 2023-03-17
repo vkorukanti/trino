@@ -32,13 +32,12 @@ import io.delta.standalone.types.StructField;
 import io.delta.standalone.types.StructType;
 import io.delta.standalone.types.TimestampType;
 import io.delta.standalone.utils.CloseableIterator;
-import io.trino.plugin.hive.HdfsEnvironment;
+import io.trino.hdfs.HdfsEnvironment;
 import io.trino.spi.Page;
 import io.trino.spi.block.Block;
 import io.trino.spi.block.IntArrayBlock;
 import io.trino.spi.block.LongArrayBlock;
 import io.trino.spi.connector.ConnectorPageSource;
-import io.trino.spi.security.ConnectorIdentity;
 import org.apache.hadoop.conf.Configuration;
 
 import java.io.Closeable;
@@ -50,7 +49,6 @@ public class DeltaCoreTaskPageSource
         implements ConnectorPageSource
 {
     private final HdfsEnvironment hdfsEnvironment;
-    private final ConnectorIdentity identity;
     private final Configuration configuration;
     private final DeltaScanTaskCore task;
     private final List<DeltaColumnHandle> columns;
@@ -60,13 +58,11 @@ public class DeltaCoreTaskPageSource
 
     public DeltaCoreTaskPageSource(
             HdfsEnvironment hdfsEnvironment,
-            ConnectorIdentity identity,
             Configuration configuration,
             DeltaScanTaskCore task,
             List<DeltaColumnHandle> columns)
     {
         this.hdfsEnvironment = hdfsEnvironment;
-        this.identity = identity;
         this.configuration = configuration;
         this.task = task;
         this.columns = columns;
@@ -105,7 +101,7 @@ public class DeltaCoreTaskPageSource
     }
 
     @Override
-    public long getSystemMemoryUsage()
+    public long getMemoryUsage()
     {
         return 0;
     }

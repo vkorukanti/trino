@@ -120,7 +120,7 @@ public abstract class AbstractDeltaDistributedQueryTestBase
                 .put("hive.allow-drop-table", "true")
                 .put("hive.security", "legacy")
                 .buildOrThrow();
-        queryRunner.createCatalog(HIVE_CATALOG, "hive-hadoop2", hiveProperties);
+        queryRunner.createCatalog(HIVE_CATALOG, "hive", hiveProperties);
         queryRunner.execute(format("CREATE SCHEMA %s.%s", HIVE_CATALOG, DELTA_SCHEMA));
 
         return queryRunner;
