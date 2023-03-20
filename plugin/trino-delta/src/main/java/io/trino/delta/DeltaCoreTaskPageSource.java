@@ -14,6 +14,8 @@
 package io.trino.delta;
 
 import io.delta.standalone.core.DeltaScanTaskCore;
+import io.delta.standalone.data.ColumnVector;
+import io.delta.standalone.data.ColumnarRowBatch;
 import io.delta.standalone.data.RowBatch;
 import io.delta.standalone.data.RowRecord;
 import io.delta.standalone.types.BinaryType;
@@ -33,6 +35,7 @@ import io.delta.standalone.types.StructType;
 import io.delta.standalone.types.TimestampType;
 import io.delta.standalone.utils.CloseableIterator;
 import io.trino.hdfs.HdfsEnvironment;
+import io.trino.plugin.hive.ReaderPageSource;
 import io.trino.spi.Page;
 import io.trino.spi.block.Block;
 import io.trino.spi.block.IntArrayBlock;
@@ -44,6 +47,7 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 public class DeltaCoreTaskPageSource
         implements ConnectorPageSource
@@ -51,20 +55,23 @@ public class DeltaCoreTaskPageSource
     private final HdfsEnvironment hdfsEnvironment;
     private final Configuration configuration;
     private final DeltaScanTaskCore task;
+    private final Function<String, ReaderPageSource> pageSourceCreator;
     private final List<DeltaColumnHandle> columns;
 
-    private CloseableIterator<RowBatch> rowBatchIter;
+    private CloseableIterator<ColumnarRowBatch> batchIter;
     private boolean isFinished;
 
     public DeltaCoreTaskPageSource(
             HdfsEnvironment hdfsEnvironment,
             Configuration configuration,
             DeltaScanTaskCore task,
+            Function<String, ReaderPageSource> pageSourceCreator,
             List<DeltaColumnHandle> columns)
     {
         this.hdfsEnvironment = hdfsEnvironment;
         this.configuration = configuration;
         this.task = task;
+        this.pageSourceCreator = pageSourceCreator;
         this.columns = columns;
     }
 
@@ -89,15 +96,15 @@ public class DeltaCoreTaskPageSource
     @Override
     public Page getNextPage()
     {
-        if (rowBatchIter == null) {
-            rowBatchIter = task.getDataAsRows();
+        if (batchIter == null) {
+            batchIter = task.getDataAsBatches(pageSourceCreator);
         }
-        if (!rowBatchIter.hasNext()) {
+        if (!batchIter.hasNext()) {
             isFinished = true;
             return null;
         }
-        RowBatch nextBatch = rowBatchIter.next();
-        return convertDeltaRowsToPage(nextBatch);
+        ColumnarRowBatch nextBatch = batchIter.next();
+        return convertDeltaToTrino(nextBatch, columns);
     }
 
     @Override
@@ -109,7 +116,7 @@ public class DeltaCoreTaskPageSource
     @Override
     public void close()
     {
-        closeQuietly(rowBatchIter);
+        closeQuietly(batchIter);
     }
 
     private static void closeQuietly(Closeable client)
@@ -124,7 +131,24 @@ public class DeltaCoreTaskPageSource
         }
     }
 
-    private static Page convertDeltaRowsToPage(RowBatch rowBatch)
+    private static Page convertDeltaToTrino(
+            ColumnarRowBatch columnarRowBatch,
+            List<DeltaColumnHandle> columns)
+    {
+        List<Block> blocks = new ArrayList<>();
+        for (DeltaColumnHandle column : columns) {
+            ColumnVector deltaVector = columnarRowBatch.getColumnVector(column.getName());
+            if (deltaVector instanceof AbstractTrinoDeltaVector trinoDeltaVector) {
+                blocks.add(trinoDeltaVector.getTrinoBlock());
+            }
+            else {
+                throw new UnsupportedOperationException("NYI");
+            }
+        }
+        return new Page(columnarRowBatch.getNumRows(), blocks.toArray(new Block[0]));
+    }
+
+    private static Page convertDeltaToTrino(RowBatch rowBatch)
     {
         // Dump method, but let's get it work for the hackathon
         List<RowRecord> rows = new ArrayList<>();

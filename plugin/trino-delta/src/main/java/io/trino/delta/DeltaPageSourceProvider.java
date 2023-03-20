@@ -53,6 +53,7 @@ import javax.inject.Inject;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.trino.delta.DeltaColumnHandle.ColumnType.PARTITION;
@@ -123,10 +124,30 @@ public class DeltaPageSourceProvider
 //                deltaColumnHandles,
 //                convertPartitionValues(deltaColumnHandles, deltaSplit.getPartitionValues()),
 //                dataPageSource.get());
+
+        Function<String, ReaderPageSource> pageSourceCreator =
+                new Function<String, ReaderPageSource>() {
+                    @Override
+                    public ReaderPageSource apply(String filePath)
+                    {
+                        TrinoInputFile inputFile = fileSystemFactory.create(session).newInputFile(filePath);
+
+                        return createParquetPageSource(
+                                inputFile,
+                                0,
+                                200000000000L,
+                                regularColumnHandles,
+                                typeManager,
+                                deltaTableHandle.getPredicate(),
+                                fileFormatDataSourceStats);
+                    }
+                };
+
         ConnectorPageSource dataPageSource = createDeltaTaskPageSource(
                 hdfsEnvironment,
                 hdfsConfiguration.getConfiguration(hdfsContext, null),
                 deltaSplit.getTask().getTask(),
+                pageSourceCreator,
                 regularColumnHandles);
 
         return new DeltaPageSource(
@@ -148,13 +169,13 @@ public class DeltaPageSourceProvider
                 .collect(toMap(
                         DeltaColumnHandle::getName,
                         columnHandle -> {
-                                Type columnType = typeManager.getType(columnHandle.getDataType());
-                                return Utils.nativeValueToBlock(
-                                        columnType,
-                                        convertPartitionValue(
-                                                columnHandle.getName(),
-                                                partitionValues.get(columnHandle.getName()),
-                                                columnType));
+                            Type columnType = typeManager.getType(columnHandle.getDataType());
+                            return Utils.nativeValueToBlock(
+                                    columnType,
+                                    convertPartitionValue(
+                                            columnHandle.getName(),
+                                            partitionValues.get(columnHandle.getName()),
+                                            columnType));
                         }));
     }
 
@@ -251,12 +272,14 @@ public class DeltaPageSourceProvider
             HdfsEnvironment hdfsEnvironment,
             Configuration configuration,
             DeltaScanTaskCore task,
+            Function<String, ReaderPageSource> pageSourceCreator,
             List<DeltaColumnHandle> columns)
     {
         return new DeltaCoreTaskPageSource(
                 hdfsEnvironment,
                 configuration,
                 task,
+                pageSourceCreator,
                 columns);
     }
 }

@@ -18,7 +18,6 @@ import io.delta.standalone.Snapshot;
 import io.delta.standalone.actions.Metadata;
 import io.delta.standalone.core.DeltaScanTaskCore;
 import io.delta.standalone.data.CloseableIterator;
-import io.delta.standalone.internal.core.SimpleScanHelper;
 import io.trino.hdfs.HdfsContext;
 import io.trino.hdfs.HdfsEnvironment;
 import io.trino.spi.TrinoException;
@@ -133,7 +132,8 @@ public class DeltaClient
 
         return deltaLog.get()
                 .getSnapshotForVersionAsOf(deltaTable.getSnapshotId().get())
-                .scan(new SimpleScanHelper())
+                //.scan(new SimpleScanHelper())
+                .scan(new TrinoDeltaScanHelper())
                 .getTasks();
     }
 
