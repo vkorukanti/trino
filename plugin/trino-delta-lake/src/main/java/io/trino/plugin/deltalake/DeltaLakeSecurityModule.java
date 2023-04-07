@@ -19,6 +19,7 @@ import io.airlift.configuration.AbstractConfigurationAwareModule;
 import io.trino.plugin.base.security.FileBasedAccessControlModule;
 import io.trino.plugin.base.security.ReadOnlySecurityModule;
 import io.trino.plugin.hive.security.AllowAllSecurityModule;
+import io.trino.plugin.hive.security.SqlStandardSecurityModule;
 
 import static com.google.inject.multibindings.OptionalBinder.newOptionalBinder;
 import static io.airlift.configuration.ConditionalModule.conditionalModule;
@@ -31,6 +32,7 @@ public class DeltaLakeSecurityModule
     public static final String FILE = "file";
     public static final String READ_ONLY = "read_only";
     public static final String ALLOW_ALL = "allow_all";
+    public static final String SQL_STANDARD = "sql-standard";
 
     @Override
     protected void setup(Binder binder)
@@ -44,6 +46,7 @@ public class DeltaLakeSecurityModule
         bindSecurityModule(FILE, combine(
                 new FileBasedAccessControlModule(),
                 new StaticAccessControlMetadataModule()));
+        bindSecurityModule(SQL_STANDARD, new SqlStandardSecurityModule());
         // SYSTEM: do not bind an ConnectorAccessControl so the engine will use system security with system roles
     }
 
