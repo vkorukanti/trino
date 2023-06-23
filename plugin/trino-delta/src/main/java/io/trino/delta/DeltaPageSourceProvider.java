@@ -131,6 +131,7 @@ public class DeltaPageSourceProvider
                 hdfsEnvironment,
                 session,
                 fileSystemFactory,
+                typeManager,
                 deltaSplit.getTableLocation());
         Row scanState = DeltaRowWrapper.convertJSONToRow(tableClient, deltaSplit.getScanStateJson());
         Row scanFile = DeltaRowWrapper.convertJSONToRow(tableClient, deltaSplit.getScanFileJson());

@@ -13,10 +13,14 @@
  */
 package io.trino.delta;
 
-import static io.trino.delta.DeltaTypeUtils.convertDeltaType;
-
 import io.delta.kernel.Scan;
+import io.delta.kernel.Snapshot;
+import io.delta.kernel.Table;
+import io.delta.kernel.client.TableClient;
+import io.delta.kernel.data.ColumnarBatch;
 import io.delta.kernel.data.Row;
+import io.delta.kernel.types.StructType;
+import io.delta.kernel.utils.CloseableIterator;
 import io.delta.kernel.utils.Tuple2;
 import io.trino.delta.client.TrinoDeltaTableClient;
 import io.trino.filesystem.TrinoFileSystem;
@@ -25,22 +29,20 @@ import io.trino.hdfs.HdfsContext;
 import io.trino.hdfs.HdfsEnvironment;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.type.TypeManager;
 import io.trino.spi.type.TypeSignature;
-import java.util.List;
-import java.util.Locale;
-import static java.util.Objects.requireNonNull;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import javax.inject.Inject;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 
-import io.delta.kernel.Snapshot;
-import io.delta.kernel.Table;
-import io.delta.kernel.client.TableClient;
-import io.delta.kernel.data.ColumnarBatch;
-import io.delta.kernel.types.StructType;
-import io.delta.kernel.utils.CloseableIterator;
+import javax.inject.Inject;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import static io.trino.delta.DeltaTypeUtils.convertDeltaType;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Class to interact with Delta lake table APIs.
@@ -49,12 +51,14 @@ public class DeltaClient
 {
     private final HdfsEnvironment hdfsEnvironment;
     private final TrinoFileSystemFactory fileSystemFactory;
+    private final TypeManager typeManager;
 
     @Inject
-    public DeltaClient(HdfsEnvironment hdfsEnvironment, TrinoFileSystemFactory fileSystemFactory)
+    public DeltaClient(HdfsEnvironment hdfsEnvironment, TrinoFileSystemFactory fileSystemFactory, TypeManager typeManager)
     {
         this.hdfsEnvironment = requireNonNull(hdfsEnvironment, "hdfsEnvironment is null");
         this.fileSystemFactory = requireNonNull(fileSystemFactory, "fileSystemFactory is null");
+        this.typeManager = requireNonNull(typeManager, "typeManager is null");
     }
 
     /**
@@ -80,7 +84,12 @@ public class DeltaClient
         }
 
         try {
-            TableClient tableClient = createTableClient(hdfsEnvironment, session, fileSystemFactory, tableLocation);
+            TableClient tableClient = createTableClient(
+                    hdfsEnvironment,
+                    session,
+                    fileSystemFactory,
+                    typeManager,
+                    tableLocation);
             Snapshot snapshot = loadSnapshot(tableClient, tableLocation);
 
             StructType schema = snapshot.getSchema(tableClient);
@@ -99,6 +108,7 @@ public class DeltaClient
 
     /**
      * Get the list of scan file rows as an iterator of {@link ColumnarBatch}
+     *
      * @return Iterator of {@link ColumnarBatch} where each correspond to one scan file.
      */
     public Tuple2<Row, CloseableIterator<ColumnarBatch>> getScanStateAndSplits(
@@ -106,7 +116,11 @@ public class DeltaClient
             DeltaTable deltaTable)
     {
         try {
-            TableClient tableClient = createTableClient(hdfsEnvironment, session, fileSystemFactory, deltaTable.getTableLocation());
+            TableClient tableClient = createTableClient(
+                    hdfsEnvironment,
+                    session,
+                    fileSystemFactory,
+                    typeManager, deltaTable.getTableLocation());
             Snapshot snapshot = loadSnapshot(tableClient, deltaTable.getTableLocation());
 
             Scan scan = snapshot.getScanBuilder(tableClient).build();
@@ -152,12 +166,13 @@ public class DeltaClient
             HdfsEnvironment hdfsEnvironment,
             ConnectorSession session,
             TrinoFileSystemFactory trinoFileSystemFactory,
+            TypeManager typeManager,
             String tableLocation)
     {
         HdfsContext hdfsContext = new HdfsContext(session);
         Configuration conf = hdfsEnvironment.getConfiguration(hdfsContext, new Path(tableLocation));
         TrinoFileSystem trinoFileSystem = trinoFileSystemFactory.create(session);
 
-        return new TrinoDeltaTableClient(conf, trinoFileSystem);
+        return new TrinoDeltaTableClient(conf, trinoFileSystem, typeManager);
     }
 }

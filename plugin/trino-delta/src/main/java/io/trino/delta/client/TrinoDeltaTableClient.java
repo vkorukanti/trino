@@ -15,6 +15,7 @@ package io.trino.delta.client;
 
 import io.trino.filesystem.TrinoFileSystem;
 import io.trino.filesystem.TrinoFileSystemFactory;
+import io.trino.spi.type.TypeManager;
 import org.apache.hadoop.conf.Configuration;
 
 import io.delta.kernel.client.DefaultExpressionHandler;
@@ -31,11 +32,16 @@ public class TrinoDeltaTableClient
 {
     private final Configuration configuration;
     private final TrinoFileSystem fileSystem;
+    private final TypeManager typeManager;
 
-    public TrinoDeltaTableClient(Configuration configuration, TrinoFileSystem fileSystem)
+    public TrinoDeltaTableClient(
+            Configuration configuration,
+            TrinoFileSystem fileSystem,
+            TypeManager typeManager)
     {
         this.configuration = configuration;
         this.fileSystem = fileSystem;
+        this.typeManager = typeManager;
     }
 
     @Override
@@ -59,6 +65,6 @@ public class TrinoDeltaTableClient
     @Override
     public ParquetHandler getParquetHandler()
     {
-        return new TrinoDeltaParquetHandler(configuration, fileSystem);
+        return new TrinoDeltaParquetHandler(configuration, fileSystem, typeManager);
     }
 }
