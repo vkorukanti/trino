@@ -39,18 +39,43 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DeltaRowWrapper
+public class DeltaRowSerDe
 {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private DeltaRowWrapper(Row row)
+    private DeltaRowSerDe(Row row)
     {
     }
 
     public static String convertRowToJson(Row row)
     {
-        StructType rowType = row.getSchema();
+        Map<String, Object> rowObject = convertRowToJsonObject(row);
+        try {
+            Map<String, Object> rowWithSchema = new HashMap<>();
+            rowWithSchema.put("schema", TableSchemaSerDe.toJson(row.getSchema()));
+            rowWithSchema.put("row", rowObject);
+            return OBJECT_MAPPER.writeValueAsString(rowWithSchema);
+        }
+        catch (JsonProcessingException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
+    public static Row convertJSONToRow(TableClient tableClient, String jsonRowWithSchema)
+    {
+        try {
+            JsonNode jsonNode = OBJECT_MAPPER.readTree(jsonRowWithSchema);
+            JsonNode schemaNode = jsonNode.get("schema");
+            StructType schema = TableSchemaSerDe.fromJson(tableClient.getJsonHandler(), schemaNode.asText());
+            return parseRowFromJsonWithSchema((ObjectNode) jsonNode.get("row"), schema);
+        }
+        catch (JsonProcessingException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private static Map<String, Object> convertRowToJsonObject(Row row) {
+        StructType rowType = row.getSchema();
         Map<String, Object> rowObject = new HashMap<>();
         for (int fieldId = 0; fieldId < rowType.length(); fieldId++) {
             StructField field = rowType.at(fieldId);
@@ -62,7 +87,7 @@ public class DeltaRowWrapper
                 continue;
             }
 
-            Object value = null;
+            Object value;
             if (fieldType instanceof BooleanType) {
                 value = row.getBoolean(fieldId);
             }
@@ -93,6 +118,10 @@ public class DeltaRowWrapper
             else if (fieldType instanceof MapType) {
                 value = row.getMap(fieldId);
             }
+            else if (fieldType instanceof StructType) {
+                Row subRow = row.getStruct(fieldId);
+                value = convertRowToJsonObject(subRow);
+            }
             else {
                 throw new UnsupportedOperationException("NYI");
             }
@@ -100,28 +129,7 @@ public class DeltaRowWrapper
             rowObject.put(name, value);
         }
 
-        try {
-            Map<String, Object> rowWithSchema = new HashMap<>();
-            rowWithSchema.put("schema", TableSchemaSerDe.toJson(rowType));
-            rowWithSchema.put("row", rowObject);
-            return OBJECT_MAPPER.writeValueAsString(rowWithSchema);
-        }
-        catch (JsonProcessingException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    public static Row convertJSONToRow(TableClient tableClient, String jsonRowWithSchema)
-    {
-        try {
-            JsonNode jsonNode = OBJECT_MAPPER.readTree(jsonRowWithSchema);
-            JsonNode schemaNode = jsonNode.get("schema");
-            StructType schema = TableSchemaSerDe.fromJson(tableClient.getJsonHandler(), schemaNode.asText());
-            return parseRowFromJsonWithSchema((ObjectNode) jsonNode.get("row"), schema);
-        }
-        catch (JsonProcessingException ex) {
-            throw new UncheckedIOException(ex);
-        }
+        return rowObject;
     }
 
     private static Row parseRowFromJsonWithSchema(ObjectNode rowJsonNode, StructType rowType)

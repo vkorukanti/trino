@@ -111,7 +111,7 @@ public class DeltaClient
      *
      * @return Iterator of {@link ColumnarBatch} where each correspond to one scan file.
      */
-    public Tuple2<Row, CloseableIterator<ColumnarBatch>> getScanStateAndSplits(
+    public Tuple2<Row, CloseableIterator<ColumnarBatch>> getScanStateAndFiles(
             ConnectorSession session,
             DeltaTable deltaTable)
     {
@@ -158,7 +158,7 @@ public class DeltaClient
                             columnName,
                             trinoType,
                             field.isNullable(),
-                            false /* TODO */);
+                            false /* isPartitionColumn - TODO - may not needed */);
                 }).collect(Collectors.toList());
     }
 

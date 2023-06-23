@@ -86,7 +86,7 @@ public class DeltaSplitManager
         {
             this.deltaTable = deltaTableHandle.getDeltaTable();
             Tuple2<Row, CloseableIterator<ColumnarBatch>> stateAndSplits =
-                    deltaClient.getScanStateAndSplits(session, deltaTable);
+                    deltaClient.getScanStateAndFiles(session, deltaTable);
             this.scanState = stateAndSplits._1;
             this.scanFileBatchIterator = stateAndSplits._2;
             this.maxBatchSize = deltaConfig.getMaxSplitsBatchSize();
@@ -108,8 +108,8 @@ public class DeltaSplitManager
                                 deltaTable.getSchemaName(),
                                 deltaTable.getTableName(),
                                 deltaTable.getTableLocation(),
-                                DeltaRowWrapper.convertRowToJson(scanState),
-                                DeltaRowWrapper.convertRowToJson(scanFile.get())
+                                DeltaRowSerDe.convertRowToJson(scanState),
+                                DeltaRowSerDe.convertRowToJson(scanFile.get())
                         )
                 );
             }

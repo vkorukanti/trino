@@ -98,7 +98,13 @@ public class DeltaScanRowPageSource
                 return null;
             }
             DataReadResult nextBatch = batchIter.next();
-            return convertDeltaToTrino(nextBatch.getData(), columns);
+            Page page = convertDeltaToTrino(nextBatch.getData(), columns);
+
+            if (nextBatch.getSelectionVector().isPresent()) {
+                return withSelectionPositions(page, nextBatch.getSelectionVector().get());
+            } else {
+                return page;
+            }
         }
         catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
@@ -141,10 +147,28 @@ public class DeltaScanRowPageSource
                 blocks.add(trinoDeltaVector.getTrinoBlock());
             }
             else {
-                throw new UnsupportedOperationException("NYI");
+                throw new UnsupportedOperationException("Encountered vectors that are not Trino based.");
             }
             i++;
         }
         return new Page(columnarBatch.getSize(), blocks.toArray(new Block[0]));
+    }
+
+    private static Page withSelectionPositions(
+            Page page,
+            ColumnVector selectionColumnVector) {
+        int positionCount = page.getPositionCount();
+        int[] retained = new int[positionCount];
+        int retainedCount = 0;
+        for (int position = 0; position < positionCount; position++) {
+            if (selectionColumnVector.getBoolean(position)) {
+                retained[retainedCount] = position;
+                retainedCount++;
+            }
+        }
+        if (retainedCount == positionCount) {
+            return page;
+        }
+        return page.getPositions(retained, 0, retainedCount);
     }
 }

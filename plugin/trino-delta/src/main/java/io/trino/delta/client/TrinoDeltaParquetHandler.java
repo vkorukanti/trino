@@ -13,7 +13,6 @@
  */
 package io.trino.delta.client;
 
-import com.google.common.collect.ImmutableList;
 import io.delta.kernel.client.DefaultFileHandler;
 import io.delta.kernel.client.FileReadContext;
 import io.delta.kernel.client.ParquetHandler;
@@ -21,7 +20,6 @@ import io.delta.kernel.data.ColumnarBatch;
 import io.delta.kernel.data.FileDataReadResult;
 import io.delta.kernel.data.Row;
 import io.delta.kernel.fs.FileStatus;
-import io.delta.kernel.types.BooleanType;
 import io.delta.kernel.types.DataType;
 import io.delta.kernel.types.StructField;
 import io.delta.kernel.types.StructType;
@@ -38,25 +36,13 @@ import io.trino.plugin.hive.HiveColumnHandle;
 import io.trino.plugin.hive.HiveType;
 import io.trino.plugin.hive.ReaderPageSource;
 import io.trino.plugin.hive.parquet.ParquetPageSourceFactory;
-import io.trino.plugin.hive.type.DecimalTypeInfo;
-import io.trino.plugin.hive.type.TypeInfo;
 import io.trino.spi.Page;
-import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorPageSource;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.TupleDomain;
-import io.trino.spi.type.ArrayType;
-import io.trino.spi.type.CharType;
-import io.trino.spi.type.DecimalType;
-import io.trino.spi.type.MapType;
-import io.trino.spi.type.RowType;
-import io.trino.spi.type.TimestampType;
-import io.trino.spi.type.TimestampWithTimeZoneType;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
 import io.trino.spi.type.TypeSignature;
-import io.trino.spi.type.TypeSignatureParameter;
-import io.trino.spi.type.VarcharType;
 import org.apache.hadoop.conf.Configuration;
 import org.joda.time.DateTimeZone;
 
@@ -68,37 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.google.common.base.Verify.verify;
-import static com.google.common.collect.ImmutableList.toImmutableList;
-import static io.trino.plugin.hive.HiveType.HIVE_BINARY;
-import static io.trino.plugin.hive.HiveType.HIVE_BOOLEAN;
-import static io.trino.plugin.hive.HiveType.HIVE_BYTE;
-import static io.trino.plugin.hive.HiveType.HIVE_DATE;
-import static io.trino.plugin.hive.HiveType.HIVE_DOUBLE;
-import static io.trino.plugin.hive.HiveType.HIVE_FLOAT;
-import static io.trino.plugin.hive.HiveType.HIVE_INT;
-import static io.trino.plugin.hive.HiveType.HIVE_LONG;
-import static io.trino.plugin.hive.HiveType.HIVE_SHORT;
-import static io.trino.plugin.hive.HiveType.HIVE_STRING;
-import static io.trino.plugin.hive.HiveType.HIVE_TIMESTAMP;
-import static io.trino.plugin.hive.type.CharTypeInfo.MAX_CHAR_LENGTH;
-import static io.trino.plugin.hive.type.TypeInfoFactory.getCharTypeInfo;
-import static io.trino.plugin.hive.type.TypeInfoFactory.getListTypeInfo;
-import static io.trino.plugin.hive.type.TypeInfoFactory.getMapTypeInfo;
-import static io.trino.plugin.hive.type.TypeInfoFactory.getStructTypeInfo;
-import static io.trino.plugin.hive.type.TypeInfoFactory.getVarcharTypeInfo;
-import static io.trino.plugin.hive.type.VarcharTypeInfo.MAX_VARCHAR_LENGTH;
-import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
-import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.BooleanType.BOOLEAN;
-import static io.trino.spi.type.DateType.DATE;
-import static io.trino.spi.type.DoubleType.DOUBLE;
-import static io.trino.spi.type.IntegerType.INTEGER;
-import static io.trino.spi.type.RealType.REAL;
-import static io.trino.spi.type.SmallintType.SMALLINT;
-import static io.trino.spi.type.TinyintType.TINYINT;
-import static io.trino.spi.type.VarbinaryType.VARBINARY;
-import static java.lang.String.format;
+import static io.trino.plugin.hive.parquet.ParquetPageSourceFactory.PARQUET_ROW_INDEX_COLUMN;
 import static java.util.Objects.requireNonNull;
 
 public class TrinoDeltaParquetHandler
@@ -109,10 +65,7 @@ public class TrinoDeltaParquetHandler
     private final TrinoFileSystem fileSystem;
     private final TypeManager typeManager;
 
-    public TrinoDeltaParquetHandler(
-            Configuration configuration,
-            TrinoFileSystem fileSystem,
-            TypeManager typeManager)
+    public TrinoDeltaParquetHandler(Configuration configuration, TrinoFileSystem fileSystem, TypeManager typeManager)
     {
         this.configuration = configuration;
         this.fileSystem = fileSystem;
@@ -120,19 +73,16 @@ public class TrinoDeltaParquetHandler
     }
 
     @Override
-    public CloseableIterator<FileDataReadResult> readParquetFiles(
-            CloseableIterator<FileReadContext> fileIter,
-            StructType physicalSchema)
+    public CloseableIterator<FileDataReadResult> readParquetFiles(CloseableIterator<FileReadContext> fileIter, StructType physicalSchema)
             throws IOException
     {
         return readFiles(fileIter, physicalSchema);
     }
 
-    private CloseableIterator<FileDataReadResult> readFiles(
-            CloseableIterator<FileReadContext> fileIter,
-            StructType physicalSchema)
+    private CloseableIterator<FileDataReadResult> readFiles(CloseableIterator<FileReadContext> fileIter, StructType physicalSchema)
     {
-        return new CloseableIterator<>() {
+        return new CloseableIterator<>()
+        {
 
             private FileReadContext currentFileReadContext = null;
             private CloseableParquetBatchReader currentFileReader = null;
@@ -146,38 +96,39 @@ public class TrinoDeltaParquetHandler
             @Override
             public boolean hasNext()
             {
-                 if (currentFileReader == null || !currentFileReader.hasNext()) {
-                     Utils.closeCloseables(currentFileReader);
+                if (currentFileReader != null && currentFileReader.hasNext()) {
+                    return true;
+                }
 
-                     if (!fileIter.hasNext()) {
-                         return false;
-                     }
-                     currentFileReadContext = fileIter.next();
-                     FileStatus fileStatus = Utils.getFileStatus(currentFileReadContext.getScanFileRow());
-                     TrinoInputFile inputFile = fileSystem.newInputFile(fileStatus.getPath());
+                Utils.closeCloseables(currentFileReader);
+                if (!fileIter.hasNext()) {
+                    return false; // no more files to read.
+                }
+                currentFileReadContext = fileIter.next();
+                FileStatus fileStatus = Utils.getFileStatus(currentFileReadContext.getScanFileRow());
+                TrinoInputFile inputFile = fileSystem.newInputFile(fileStatus.getPath());
 
-                     try {
-                         ReaderPageSource pageSource = ParquetPageSourceFactory.createPageSource(
-                                 inputFile,
-                                 0,
-                                 inputFile.length(),
-                                 createHiveHandles(physicalSchema),
-                                 TupleDomain.all(),
-                                 true,
-                                 DateTimeZone.getDefault(),
-                                 new FileFormatDataSourceStats(),
-                                 new ParquetReaderOptions(),
-                                 Optional.empty(),
-                                 100
-                         );
+                try {
+                    ReaderPageSource pageSource = ParquetPageSourceFactory.createPageSource(
+                            inputFile,
+                            0 /* start index in file */,
+                            inputFile.length(),
+                            createHiveHandles(physicalSchema),
+                            TupleDomain.all() /* select everything */,
+                            true /* useColumnNames */,
+                            DateTimeZone.getDefault(),
+                            new FileFormatDataSourceStats(),
+                            new ParquetReaderOptions(),
+                            Optional.empty() /* parquet writer validation */,
+                            100 /* Maximum ranges to allow in a tuple domain without compacting it */
+                    );
 
-                         currentFileReader = new CloseableParquetBatchReader(physicalSchema, pageSource.get());
-                     }
-                     catch (IOException ioe) {
-                         throw new UncheckedIOException(ioe);
-                     }
-                 }
-                 return currentFileReader.hasNext();
+                    currentFileReader = new CloseableParquetBatchReader(physicalSchema, pageSource.get());
+                }
+                catch (IOException ioe) {
+                    throw new UncheckedIOException(ioe);
+                }
+                return currentFileReader.hasNext();
             }
 
             @Override
@@ -185,7 +136,8 @@ public class TrinoDeltaParquetHandler
             {
                 final ColumnarBatch data = currentFileReader.next();
                 final Row scanFileRow = currentFileReadContext.getScanFileRow();
-                return new FileDataReadResult() {
+                return new FileDataReadResult()
+                {
                     @Override
                     public ColumnarBatch getData()
                     {
@@ -209,24 +161,25 @@ public class TrinoDeltaParquetHandler
             DataType kernelType = structField.getDataType();
             String name = structField.getName();
 
-            TypeSignature trinoTypeSignature = DeltaTypeUtils.convertDeltaType(
-                    new SchemaTableName("test", "test"),
-                    name,
-                    kernelType
-            );
+            if (structField.isMetadataColumn() &&
+                    StructField.ROW_INDEX_COLUMN_NAME.equalsIgnoreCase(name)) {
+                hiveColumnHandles.add(PARQUET_ROW_INDEX_COLUMN);
+                continue;
+            }
 
+            TypeSignature trinoTypeSignature = DeltaTypeUtils.convertDeltaType(new SchemaTableName("test", "test"), name, kernelType);
             Type trinoType = typeManager.getType(trinoTypeSignature);
-
             HiveType hiveType = DeltaHiveTypeTranslator.toHiveType(trinoType);
 
-            HiveColumnHandle hiveColumnHandle = new HiveColumnHandle(
-                    name, // this name is used for accessing Parquet files, so it should be physical name
-                    0, // hiveColumnIndex; we provide fake value because we always find columns by name
-                    hiveType,
-                    trinoType,
-                    Optional.empty(),
-                    HiveColumnHandle.ColumnType.REGULAR,
-                    Optional.empty());
+            HiveColumnHandle hiveColumnHandle =
+                    new HiveColumnHandle(
+                            name, // this name is used for accessing Parquet files, so it should be physical name
+                            0, // hiveColumnIndex; we provide fake value because we always find columns by name
+                            hiveType,
+                            trinoType,
+                            Optional.empty(),
+                            HiveColumnHandle.ColumnType.REGULAR,
+                            Optional.empty());
 
             hiveColumnHandles.add(hiveColumnHandle);
         }
@@ -243,9 +196,7 @@ public class TrinoDeltaParquetHandler
 
         private Page nextPage;
 
-        public CloseableParquetBatchReader(
-                StructType schema,
-                ConnectorPageSource deltaPageSource)
+        public CloseableParquetBatchReader(StructType schema, ConnectorPageSource deltaPageSource)
         {
             this.deltaPageSource = requireNonNull(deltaPageSource, "deltaPageSource is null");
             this.schema = requireNonNull(schema, "schema is null");
@@ -268,10 +219,7 @@ public class TrinoDeltaParquetHandler
         {
             Page page = nextPage != null ? nextPage : deltaPageSource.getNextPage();
             nextPage = null;
-            return new TrinoDeltaColumnarBatch(
-                    schema,
-                    page,
-                    columnNameToIndexMap);
+            return new TrinoDeltaColumnarBatch(schema, page, columnNameToIndexMap);
         }
 
         @Override

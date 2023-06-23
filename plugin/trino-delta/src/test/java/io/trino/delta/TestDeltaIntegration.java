@@ -52,10 +52,10 @@ public class TestDeltaIntegration
     {
         // Test reading following primitive types from a Delta table (all ints, float, double, decimal, boolean, varchar, varbinary)
         String testQuery =
-                format("SELECT * FROM \"%s\".\"%s\"", PATH_SCHEMA, goldenTablePath("table-with-dv-small"));
+                format("SELECT * FROM \"%s\".\"%s\"", PATH_SCHEMA, goldenTablePath("basic-dv-no-checkpoint"));
         // H2 query doesn't work for VALUES with multiple rows, use UNION ALL
         String expResultsQuery = Joiner.on(" UNION ").join(
-                Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8)
+                Arrays.asList(2, 3, 4, 5, 6, 7, 8, 9)
                         .stream()
                         .map(i -> format("SELECT %d", i))
                         .collect(Collectors.toList()));
