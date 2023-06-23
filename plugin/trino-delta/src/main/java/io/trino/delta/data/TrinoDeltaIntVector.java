@@ -11,52 +11,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.delta;
+package io.trino.delta.data;
 
-import io.delta.standalone.types.DataType;
-import io.delta.standalone.types.IntegerType;
 import io.trino.spi.block.Block;
-import io.trino.spi.block.LongArrayBlock;
+import io.trino.spi.block.IntArrayBlock;
 
 import static java.util.Objects.requireNonNull;
 
-public class TrinoDeltaLongVector
+import io.delta.kernel.types.DataType;
+import io.delta.kernel.types.IntegerType;
+
+public class TrinoDeltaIntVector
         extends AbstractTrinoDeltaVector
 {
-    private final LongArrayBlock trinoLongVector;
+    private final IntArrayBlock trinoIntVector;
 
-    public TrinoDeltaLongVector(LongArrayBlock trinoLongVector)
+    public TrinoDeltaIntVector(IntArrayBlock trinoIntVector)
     {
-        this.trinoLongVector = requireNonNull(trinoLongVector, "trinoLongVector is null");
+        this.trinoIntVector = requireNonNull(trinoIntVector, "trinoIntVector is null");
     }
 
     @Override
     public Block getTrinoBlock()
     {
-        return trinoLongVector;
+        return trinoIntVector;
     }
 
     @Override
     public DataType getDataType()
     {
-        return new IntegerType();
-    }
-
-    @Override
-    public void close()
-    {
-        // there is nothing to close in Trino vectors as they are heap based and managed by the JVM
+        return IntegerType.INSTANCE;
     }
 
     @Override
     public boolean isNullAt(int rowId)
     {
-        return trinoLongVector.isNull(rowId);
+        return trinoIntVector.isNull(rowId);
     }
 
     @Override
-    public long getLong(int rowId)
+    public int getInt(int rowId)
     {
-        return trinoLongVector.getLong(rowId, 0);
+        return trinoIntVector.getInt(rowId, 0);
     }
 }

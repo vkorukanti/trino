@@ -11,52 +11,52 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.delta;
+package io.trino.delta.data;
 
-import io.delta.standalone.types.DataType;
-import io.delta.standalone.types.IntegerType;
+import io.airlift.slice.Slice;
+import io.delta.kernel.types.DataType;
+import io.delta.kernel.types.LongType;
 import io.trino.spi.block.Block;
-import io.trino.spi.block.IntArrayBlock;
+import io.trino.spi.block.VariableWidthBlock;
 
 import static java.util.Objects.requireNonNull;
 
-public class TrinoDeltaIntVector
+public class TrinoDeltaStringVector
         extends AbstractTrinoDeltaVector
 {
-    private final IntArrayBlock trinoIntVector;
+    private final VariableWidthBlock variableWidthBlock;
 
-    public TrinoDeltaIntVector(IntArrayBlock trinoIntVector)
+    public TrinoDeltaStringVector(VariableWidthBlock variableWidthBlock)
     {
-        this.trinoIntVector = requireNonNull(trinoIntVector, "trinoIntVector is null");
+        this.variableWidthBlock = requireNonNull(variableWidthBlock, "variableWidthBlock is null");
     }
 
     @Override
     public Block getTrinoBlock()
     {
-        return trinoIntVector;
+        return variableWidthBlock;
     }
 
     @Override
     public DataType getDataType()
     {
-        return new IntegerType();
-    }
-
-    @Override
-    public void close()
-    {
-        // there is nothing to close in Trino vectors as they are heap based and managed by the JVM
+        return LongType.INSTANCE;
     }
 
     @Override
     public boolean isNullAt(int rowId)
     {
-        return trinoIntVector.isNull(rowId);
+        return variableWidthBlock.isNull(rowId);
     }
 
     @Override
-    public int getInt(int rowId)
+    public String getString(int rowId)
     {
-        return trinoIntVector.getInt(rowId, 0);
+        Slice slice = variableWidthBlock.getSlice(
+                rowId,
+                variableWidthBlock.getRawSliceOffset(rowId),
+                variableWidthBlock.getSliceLength(rowId));
+
+        return slice.toStringUtf8();
     }
 }

@@ -11,11 +11,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.delta;
+package io.trino.delta.data;
 
-import io.delta.standalone.data.ColumnVector;
-import io.delta.standalone.data.ColumnarStruct;
 import io.trino.spi.block.Block;
+import java.util.List;
+import java.util.Map;
+
+import io.delta.kernel.data.ColumnVector;
+import io.delta.kernel.data.Row;
+import io.delta.kernel.types.DataType;
 
 public abstract class AbstractTrinoDeltaVector
         implements ColumnVector
@@ -77,7 +81,43 @@ public abstract class AbstractTrinoDeltaVector
     }
 
     @Override
-    public ColumnarStruct getStruct(int rowId)
+    public Row getStruct(int rowId)
+    {
+        throw new UnsupportedOperationException("TODO (improve): Invalid getValue type");
+    }
+
+    @Override
+    public <K, V> Map<K, V> getMap(int rowId)
+    {
+        throw new UnsupportedOperationException("TODO (improve): Invalid getValue type");
+    }
+
+    @Override
+    public <T> List<T> getArray(int rowId)
+    {
+        throw new UnsupportedOperationException("TODO (improve): Invalid getValue type");
+    }
+
+    @Override
+    public DataType getDataType()
+    {
+        throw new UnsupportedOperationException("TODO (improve): Invalid getValue type");
+    }
+
+    @Override
+    public int getSize()
+    {
+        throw new UnsupportedOperationException("TODO (improve): Invalid getValue type");
+    }
+
+    @Override
+    public void close()
+    {
+        // there is nothing to close in Trino vectors as they are heap based and managed by the JVM
+    }
+
+    @Override
+    public boolean isNullAt(int rowId)
     {
         throw new UnsupportedOperationException("TODO (improve): Invalid getValue type");
     }

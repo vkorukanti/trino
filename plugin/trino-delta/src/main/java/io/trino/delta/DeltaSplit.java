@@ -29,19 +29,25 @@ public class DeltaSplit
     private final String connectorId;
     private final String schema;
     private final String table;
-    private final WrappedDeltaCoreTask task;
+    private final String tableLocation;
+    private final String scanStateJson;
+    private final String scanFileJson;
 
     @JsonCreator
     public DeltaSplit(
             @JsonProperty("connectorId") String connectorId,
             @JsonProperty("schemaName") String schema,
             @JsonProperty("tableName") String table,
-            @JsonProperty("task") WrappedDeltaCoreTask task)
+            @JsonProperty("tableLocation") String tableLocation,
+            @JsonProperty("scanState") String scanStateJson,
+            @JsonProperty("scanFile") String scanFileJson)
     {
         this.connectorId = requireNonNull(connectorId, "connector id is null");
         this.schema = requireNonNull(schema, "schema name is null");
         this.table = requireNonNull(table, "table name is null");
-        this.task = requireNonNull(task, "task name is null");
+        this.tableLocation = requireNonNull(tableLocation, "tableLocation name is null");
+        this.scanStateJson = requireNonNull(scanStateJson, "scanStateJson name is null");
+        this.scanFileJson = requireNonNull(scanFileJson, "scanFileJson name is null");
     }
 
     @JsonProperty
@@ -63,9 +69,21 @@ public class DeltaSplit
     }
 
     @JsonProperty
-    public WrappedDeltaCoreTask getTask()
+    public String getTableLocation()
     {
-        return task;
+        return tableLocation;
+    }
+
+    @JsonProperty
+    public String getScanStateJson()
+    {
+        return scanStateJson;
+    }
+
+    @JsonProperty
+    public String getScanFileJson()
+    {
+        return scanFileJson;
     }
 
     @Override

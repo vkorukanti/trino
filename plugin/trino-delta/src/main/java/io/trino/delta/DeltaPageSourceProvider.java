@@ -17,7 +17,8 @@ package io.trino.delta;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import io.delta.standalone.core.DeltaScanTaskCore;
+import io.delta.kernel.client.TableClient;
+import io.delta.kernel.data.Row;
 import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.filesystem.TrinoInputFile;
 import io.trino.hdfs.HdfsConfiguration;
@@ -107,26 +108,9 @@ public class DeltaPageSourceProvider
                 .filter(columnHandle -> columnHandle.getColumnType() != PARTITION)
                 .collect(Collectors.toList());
 
-//        TrinoInputFile inputFile = fileSystemFactory.create(session).newInputFile(
-//                deltaSplit.getFilePath(),
-//                deltaSplit.getFileSize());
-//
-//        ReaderPageSource dataPageSource = createParquetPageSource(
-//                inputFile,
-//                deltaSplit.getStart(),
-//                deltaSplit.getLength(),
-//                regularColumnHandles,
-//                typeManager,
-//                deltaTableHandle.getPredicate(),
-//                fileFormatDataSourceStats);
-//
-//        return new DeltaPageSource(
-//                deltaColumnHandles,
-//                convertPartitionValues(deltaColumnHandles, deltaSplit.getPartitionValues()),
-//                dataPageSource.get());
-
         Function<String, ReaderPageSource> pageSourceCreator =
-                new Function<String, ReaderPageSource>() {
+                new Function<String, ReaderPageSource>()
+                {
                     @Override
                     public ReaderPageSource apply(String filePath)
                     {
@@ -143,11 +127,19 @@ public class DeltaPageSourceProvider
                     }
                 };
 
-        ConnectorPageSource dataPageSource = createDeltaTaskPageSource(
+        TableClient tableClient = DeltaClient.createTableClient(
+                hdfsEnvironment,
+                session,
+                fileSystemFactory,
+                deltaSplit.getTableLocation());
+        Row scanState = DeltaRowWrapper.convertJSONToRow(tableClient, deltaSplit.getScanStateJson());
+        Row scanFile = DeltaRowWrapper.convertJSONToRow(tableClient, deltaSplit.getScanFileJson());
+        ConnectorPageSource dataPageSource = createDeltaScanFileSource(
+                tableClient,
                 hdfsEnvironment,
                 hdfsConfiguration.getConfiguration(hdfsContext, null),
-                deltaSplit.getTask().getTask(),
-                pageSourceCreator,
+                scanState,
+                scanFile,
                 regularColumnHandles);
 
         return new DeltaPageSource(
@@ -179,7 +171,7 @@ public class DeltaPageSourceProvider
                         }));
     }
 
-    private static ReaderPageSource createParquetPageSource(
+    public static ReaderPageSource createParquetPageSource(
             TrinoInputFile inputFile,
             long start,
             long length,
@@ -268,18 +260,20 @@ public class DeltaPageSourceProvider
         return Optional.of(deltaLakeColumnHandle.toHiveColumnHandle(typeManager));
     }
 
-    private static ConnectorPageSource createDeltaTaskPageSource(
+    private static ConnectorPageSource createDeltaScanFileSource(
+            TableClient tableClient,
             HdfsEnvironment hdfsEnvironment,
             Configuration configuration,
-            DeltaScanTaskCore task,
-            Function<String, ReaderPageSource> pageSourceCreator,
+            Row scanState,
+            Row scanFile,
             List<DeltaColumnHandle> columns)
     {
-        return new DeltaCoreTaskPageSource(
+        return new DeltaScanRowPageSource(
+                tableClient,
                 hdfsEnvironment,
                 configuration,
-                task,
-                pageSourceCreator,
+                scanState,
+                scanFile,
                 columns);
     }
 }

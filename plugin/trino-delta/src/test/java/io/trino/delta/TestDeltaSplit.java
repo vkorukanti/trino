@@ -32,6 +32,8 @@ public class TestDeltaSplit
                 "delta",
                 "database",
                 "table",
+                "tableLocation",
+                null,
                 null);
 
         String json = codec.toJson(expected);
@@ -40,6 +42,8 @@ public class TestDeltaSplit
         assertEquals(actual.getConnectorId(), expected.getConnectorId());
         assertEquals(actual.getSchema(), expected.getSchema());
         assertEquals(actual.getTable(), expected.getTable());
-        assertEquals(actual.getTask(), expected.getTask());
+        assertEquals(actual.getTableLocation(), expected.getTableLocation());
+        assertEquals(actual.getScanStateJson(), expected.getScanStateJson());
+        assertEquals(actual.getScanFileJson(), expected.getScanFileJson());
     }
 }

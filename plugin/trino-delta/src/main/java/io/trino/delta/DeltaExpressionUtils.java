@@ -15,7 +15,6 @@ package io.trino.delta;
 
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
-import io.delta.standalone.actions.AddFile;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.predicate.Domain;
@@ -99,30 +98,30 @@ public class DeltaExpressionUtils
                 .transformKeys(DeltaColumnHandle::getName);
     }
 
-    private static boolean evaluatePartitionPredicate(
-            TupleDomain<String> partitionPredicate,
-            List<DeltaColumnHandle> partitionColumns,
-            TypeManager typeManager,
-            AddFile addFile)
-    {
-        Map<String, String> partitionValues = sanitizePartitionValues(addFile.getPartitionValues());
-        for (DeltaColumnHandle partitionColumn : partitionColumns) {
-            String columnName = partitionColumn.getName();
-            String partitionValue = partitionValues.get(columnName.toLowerCase(Locale.ROOT));
-            Domain domain = getDomain(partitionColumn, partitionValue, typeManager, addFile.getPath());
-            Domain columnPredicate = partitionPredicate.getDomains().get().get(columnName);
-
-            if (columnPredicate == null) {
-                continue; // there is no predicate on this column
-            }
-
-            if (columnPredicate.intersect(domain).isNone()) {
-                return false;
-            }
-        }
-
-        return true;
-    }
+//    private static boolean evaluatePartitionPredicate(
+//            TupleDomain<String> partitionPredicate,
+//            List<DeltaColumnHandle> partitionColumns,
+//            TypeManager typeManager,
+//            AddFile addFile)
+//    {
+//        Map<String, String> partitionValues = sanitizePartitionValues(addFile.getPartitionValues());
+//        for (DeltaColumnHandle partitionColumn : partitionColumns) {
+//            String columnName = partitionColumn.getName();
+//            String partitionValue = partitionValues.get(columnName.toLowerCase(Locale.ROOT));
+//            Domain domain = getDomain(partitionColumn, partitionValue, typeManager, addFile.getPath());
+//            Domain columnPredicate = partitionPredicate.getDomains().get().get(columnName);
+//
+//            if (columnPredicate == null) {
+//                continue; // there is no predicate on this column
+//            }
+//
+//            if (columnPredicate.intersect(domain).isNone()) {
+//                return false;
+//            }
+//        }
+//
+//        return true;
+//    }
 
     private static Domain getDomain(DeltaColumnHandle columnHandle, String partitionValue, TypeManager typeManager, String filePath)
     {

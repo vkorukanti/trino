@@ -13,38 +13,34 @@
  */
 package io.trino.delta;
 
-import io.delta.standalone.DeltaLog;
-import io.delta.standalone.Snapshot;
-import io.delta.standalone.actions.Metadata;
-import io.delta.standalone.core.DeltaScanTaskCore;
-import io.delta.standalone.data.CloseableIterator;
+import static io.trino.delta.DeltaTypeUtils.convertDeltaType;
+
+import io.delta.kernel.Scan;
+import io.delta.kernel.data.Row;
+import io.delta.kernel.utils.Tuple2;
+import io.trino.delta.client.TrinoDeltaTableClient;
+import io.trino.filesystem.TrinoFileSystem;
+import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.hdfs.HdfsContext;
 import io.trino.hdfs.HdfsEnvironment;
-import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.type.TypeSignature;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-
-import javax.inject.Inject;
-
-import java.io.IOException;
-import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import static io.trino.delta.DeltaErrorCode.DELTA_UNSUPPORTED_DATA_FORMAT;
-import static io.trino.delta.DeltaTypeUtils.convertDeltaDataTypeTrinoDataType;
-import static io.trino.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
-import static io.trino.spi.StandardErrorCode.NOT_FOUND;
-import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import javax.inject.Inject;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+
+import io.delta.kernel.Snapshot;
+import io.delta.kernel.Table;
+import io.delta.kernel.client.TableClient;
+import io.delta.kernel.data.ColumnarBatch;
+import io.delta.kernel.types.StructType;
+import io.delta.kernel.utils.CloseableIterator;
 
 /**
  * Class to interact with Delta lake table APIs.
@@ -52,20 +48,22 @@ import static java.util.Objects.requireNonNull;
 public class DeltaClient
 {
     private final HdfsEnvironment hdfsEnvironment;
+    private final TrinoFileSystemFactory fileSystemFactory;
 
     @Inject
-    public DeltaClient(HdfsEnvironment hdfsEnvironment)
+    public DeltaClient(HdfsEnvironment hdfsEnvironment, TrinoFileSystemFactory fileSystemFactory)
     {
         this.hdfsEnvironment = requireNonNull(hdfsEnvironment, "hdfsEnvironment is null");
+        this.fileSystemFactory = requireNonNull(fileSystemFactory, "fileSystemFactory is null");
     }
 
     /**
      * Load the delta table.
      *
-     * @param session                     Current user session
-     * @param schemaTableName             Schema and table name referred to as in the query
-     * @param tableLocation               Location of the Delta table on storage
-     * @param snapshotId                  Id of the snapshot to read from the Delta table
+     * @param session Current user session
+     * @param schemaTableName Schema and table name referred to as in the query
+     * @param tableLocation Location of the Delta table on storage
+     * @param snapshotId Id of the snapshot to read from the Delta table
      * @param snapshotAsOfTimestampMillis Latest snapshot as of given timestamp
      * @return If the table is found return {@link DeltaTable}.
      */
@@ -76,131 +74,90 @@ public class DeltaClient
             Optional<Long> snapshotId,
             Optional<Long> snapshotAsOfTimestampMillis)
     {
-        Optional<DeltaLog> deltaLog = loadDeltaTableLog(session, new Path(tableLocation), schemaTableName);
-        if (!deltaLog.isPresent()) {
-            return Optional.empty();
+        if (snapshotId.isPresent() || snapshotAsOfTimestampMillis.isPresent()) {
+            throw new UnsupportedOperationException("Reading specific snapshot of the Delta Lake " +
+                    "table is not yet supported");
         }
 
-        // Fetch the snapshot info for given snapshot version. If no snapshot version is given, get the latest snapshot info.
-        // Lock the snapshot version here and use it later in the rest of the query (such as fetching file list etc.).
-        // If we don't lock the snapshot version here, the query may end up with schema from one version and data files from another
-        // version when the underlying delta table is changing while the query is running.
-        Snapshot snapshot;
-        if (snapshotId.isPresent()) {
-            snapshot = getSnapshotById(deltaLog.get(), snapshotId.get(), schemaTableName);
-        }
-        else if (snapshotAsOfTimestampMillis.isPresent()) {
-            snapshot = getSnapshotAsOfTimestamp(deltaLog.get(), snapshotAsOfTimestampMillis.get(), schemaTableName);
-        }
-        else {
-            snapshot = deltaLog.get().snapshot(); // get the latest snapshot
-        }
+        try {
+            TableClient tableClient = createTableClient(hdfsEnvironment, session, fileSystemFactory, tableLocation);
+            Snapshot snapshot = loadSnapshot(tableClient, tableLocation);
 
-        Metadata metadata = snapshot.getMetadata();
-        String format = metadata.getFormat().getProvider();
-        if (!"parquet".equalsIgnoreCase(format)) {
-            throw new TrinoException(DELTA_UNSUPPORTED_DATA_FORMAT,
-                    format("Delta table %s has unsupported data format: %s. Currently only Parquet data format is supported", schemaTableName, format));
-        }
+            StructType schema = snapshot.getSchema(tableClient);
 
-        return Optional.of(new DeltaTable(
-                schemaTableName.getSchemaName(),
-                schemaTableName.getTableName(),
-                tableLocation,
-                Optional.of(snapshot.getVersion()), // lock the snapshot version
-                getSchema(schemaTableName, metadata)));
+            return Optional.of(new DeltaTable(
+                    schemaTableName.getSchemaName(),
+                    schemaTableName.getTableName(),
+                    tableLocation,
+                    Optional.of(snapshot.getVersion(tableClient)), // lock the snapshot version
+                    getSchema(schemaTableName, schema)));
+        }
+        catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     /**
-     * Get the list of files corresponding to the given Delta table.
-     *
-     * @return Closeable iterator of files. It is responsibility of the caller to close the iterator.
+     * Get the list of scan file rows as an iterator of {@link ColumnarBatch}
+     * @return Iterator of {@link ColumnarBatch} where each correspond to one scan file.
      */
-    public CloseableIterator<DeltaScanTaskCore> listTasks(
+    public Tuple2<Row, CloseableIterator<ColumnarBatch>> getScanStateAndSplits(
             ConnectorSession session,
             DeltaTable deltaTable)
     {
-        Optional<DeltaLog> deltaLog = loadDeltaTableLog(
-                session,
-                new Path(deltaTable.getTableLocation()),
-                new SchemaTableName(deltaTable.getSchemaName(), deltaTable.getTableName()));
-
-        if (!deltaLog.isPresent()) {
-            throw new TrinoException(NOT_FOUND,
-                    format("Delta table (%s.%s) no longer exists.", deltaTable.getSchemaName(), deltaTable.getTableName()));
-        }
-
-        return deltaLog.get()
-                .getSnapshotForVersionAsOf(deltaTable.getSnapshotId().get())
-                //.scan(new SimpleScanHelper())
-                .scan(new TrinoDeltaScanHelper())
-                .getTasks();
-    }
-
-    private Optional<DeltaLog> loadDeltaTableLog(ConnectorSession session, Path tableLocation, SchemaTableName schemaTableName)
-    {
         try {
-            HdfsContext hdfsContext = new HdfsContext(session);
-            Configuration hdfsConf = hdfsEnvironment.getConfiguration(hdfsContext, tableLocation);
-            FileSystem fileSystem = hdfsEnvironment.getFileSystem(hdfsContext, tableLocation);
-            if (!fileSystem.isDirectory(tableLocation)) {
-                return Optional.empty();
-            }
-            return Optional.of(DeltaLog.forTable(hdfsConf, tableLocation));
+            TableClient tableClient = createTableClient(hdfsEnvironment, session, fileSystemFactory, deltaTable.getTableLocation());
+            Snapshot snapshot = loadSnapshot(tableClient, deltaTable.getTableLocation());
+
+            Scan scan = snapshot.getScanBuilder(tableClient).build();
+
+            return new Tuple2<>(scan.getScanState(tableClient), scan.getScanFiles(tableClient));
         }
-        catch (IOException io) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR, format("Failed to load Delta table %s: %s", schemaTableName, io.getMessage()), io);
+        catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-    private static Snapshot getSnapshotById(DeltaLog deltaLog, long snapshotId, SchemaTableName schemaTableName)
+    private static Snapshot loadSnapshot(TableClient tableClient, String location)
+            throws Exception
     {
-        try {
-            return deltaLog.getSnapshotForVersionAsOf(snapshotId);
-        }
-        catch (IllegalArgumentException iae) {
-            throw new TrinoException(
-                    NOT_FOUND,
-                    format("Snapshot version %d does not exist in Delta table '%s'.", snapshotId, schemaTableName),
-                    iae);
-        }
-    }
-
-    private static Snapshot getSnapshotAsOfTimestamp(DeltaLog deltaLog, long snapshotAsOfTimestampMillis, SchemaTableName schemaTableName)
-    {
-        try {
-            return deltaLog.getSnapshotForTimestampAsOf(snapshotAsOfTimestampMillis);
-        }
-        catch (IllegalArgumentException iae) {
-            throw new TrinoException(
-                    NOT_FOUND,
-                    format(
-                            "There is no snapshot exists in Delta table '%s' that is created on or before '%s'",
-                            schemaTableName,
-                            Instant.ofEpochMilli(snapshotAsOfTimestampMillis)),
-                    iae);
-        }
+        return Table.forPath(location)
+                .getLatestSnapshot(tableClient);
     }
 
     /**
-     * Utility method that returns the columns in given Delta metadata. Returned columns include regular and partition types.
-     * Data type from Delta is mapped to appropriate Presto data type.
+     * Utility method that returns the columns in given Delta metadata. Returned columns include
+     * regular and partition types. Data type from Delta is mapped to appropriate Trino data type.
      */
-    private static List<DeltaColumn> getSchema(SchemaTableName tableName, Metadata metadata)
+    private static List<DeltaColumn> getSchema(SchemaTableName tableName, StructType schema)
     {
-        Set<String> partitionColumns = metadata.getPartitionColumns().stream()
-                .map(String::toLowerCase)
-                .collect(Collectors.toSet());
-
-        return Arrays.stream(metadata.getSchema().getFields())
+        return schema.fields().stream()
                 .map(field -> {
                     String columnName = field.getName().toLowerCase(Locale.US);
-                    TypeSignature prestoType = convertDeltaDataTypeTrinoDataType(tableName, columnName, field.getDataType());
+                    TypeSignature trinoType =
+                            convertDeltaType(
+                                    tableName,
+                                    columnName,
+                                    field.getDataType());
+
                     return new DeltaColumn(
                             columnName,
-                            prestoType,
+                            trinoType,
                             field.isNullable(),
-                            partitionColumns.contains(columnName));
+                            false /* TODO */);
                 }).collect(Collectors.toList());
+    }
+
+    public static TableClient createTableClient(
+            HdfsEnvironment hdfsEnvironment,
+            ConnectorSession session,
+            TrinoFileSystemFactory trinoFileSystemFactory,
+            String tableLocation)
+    {
+        HdfsContext hdfsContext = new HdfsContext(session);
+        Configuration conf = hdfsEnvironment.getConfiguration(hdfsContext, new Path(tableLocation));
+        TrinoFileSystem trinoFileSystem = trinoFileSystemFactory.create(session);
+
+        return new TrinoDeltaTableClient(conf, trinoFileSystem);
     }
 }

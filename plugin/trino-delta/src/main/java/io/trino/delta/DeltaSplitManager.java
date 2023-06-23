@@ -13,8 +13,11 @@
  */
 package io.trino.delta;
 
-import io.delta.standalone.core.DeltaScanTaskCore;
-import io.delta.standalone.data.CloseableIterator;
+import io.delta.kernel.data.ColumnarBatch;
+import io.delta.kernel.data.Row;
+import io.delta.kernel.utils.CloseableIterator;
+import io.delta.kernel.utils.Tuple2;
+import io.delta.kernel.utils.Utils;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorSplit;
 import io.trino.spi.connector.ConnectorSplitManager;
@@ -27,10 +30,9 @@ import io.trino.spi.type.TypeManager;
 
 import javax.inject.Inject;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static java.util.Objects.requireNonNull;
@@ -73,13 +75,20 @@ public class DeltaSplitManager
             implements ConnectorSplitSource
     {
         private final DeltaTable deltaTable;
-        private final CloseableIterator<DeltaScanTaskCore> taskListIterator;
+        private final Row scanState;
+        private final CloseableIterator<ColumnarBatch> scanFileBatchIterator;
         private final int maxBatchSize;
+
+        // working state
+        private CloseableIterator<Row> scanFileIterator;
 
         DeltaSplitSource(ConnectorSession session, DeltaTableHandle deltaTableHandle)
         {
             this.deltaTable = deltaTableHandle.getDeltaTable();
-            this.taskListIterator = deltaClient.listTasks(session, deltaTable);
+            Tuple2<Row, CloseableIterator<ColumnarBatch>> stateAndSplits =
+                    deltaClient.getScanStateAndSplits(session, deltaTable);
+            this.scanState = stateAndSplits._1;
+            this.scanFileBatchIterator = stateAndSplits._2;
             this.maxBatchSize = deltaConfig.getMaxSplitsBatchSize();
         }
 
@@ -87,33 +96,58 @@ public class DeltaSplitManager
         public CompletableFuture<ConnectorSplitBatch> getNextBatch(int maxSize)
         {
             List<ConnectorSplit> splits = new ArrayList<>();
-            while (taskListIterator.hasNext() && splits.size() < maxSize && splits.size() < maxBatchSize) {
-                DeltaScanTaskCore task = taskListIterator.next();
-                splits.add(new DeltaSplit(
-                        connectorId,
-                        deltaTable.getSchemaName(),
-                        deltaTable.getTableName(),
-                        new WrappedDeltaCoreTask(task)));
+
+            while (splits.size() < maxSize && splits.size() < maxBatchSize) {
+                Optional<Row> scanFile = getNextScanFile();
+                if (scanFile.isEmpty()) {
+                    break;
+                }
+                splits.add(
+                        new DeltaSplit(
+                                connectorId,
+                                deltaTable.getSchemaName(),
+                                deltaTable.getTableName(),
+                                deltaTable.getTableLocation(),
+                                DeltaRowWrapper.convertRowToJson(scanState),
+                                DeltaRowWrapper.convertRowToJson(scanFile.get())
+                        )
+                );
             }
 
-            return completedFuture(new ConnectorSplitBatch(splits, !taskListIterator.hasNext()));
+            return completedFuture(new ConnectorSplitBatch(splits, !scanFileIterator.hasNext()));
         }
 
         @Override
         public void close()
         {
-            try {
-                taskListIterator.close();
-            }
-            catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            Utils.closeCloseables(scanFileIterator, scanFileBatchIterator);
         }
 
         @Override
         public boolean isFinished()
         {
-            return !taskListIterator.hasNext();
+            return !scanFileIterator.hasNext();
+        }
+
+        private Optional<Row> getNextScanFile()
+        {
+            if (scanFileIterator == null || !scanFileIterator.hasNext()) {
+                Utils.closeCloseables(scanFileIterator);
+
+                if (scanFileBatchIterator.hasNext()) {
+                    scanFileIterator = scanFileBatchIterator.next().getRows();
+                }
+                else {
+                    return Optional.empty();
+                }
+            }
+
+            if (scanFileIterator.hasNext()) {
+                return Optional.of(scanFileIterator.next());
+            }
+            else {
+                return Optional.empty();
+            }
         }
     }
 }

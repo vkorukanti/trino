@@ -16,22 +16,22 @@ package io.trino.delta;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 import io.airlift.slice.SliceUtf8;
-import io.delta.standalone.types.ArrayType;
-import io.delta.standalone.types.BinaryType;
-import io.delta.standalone.types.BooleanType;
-import io.delta.standalone.types.ByteType;
-import io.delta.standalone.types.DataType;
-import io.delta.standalone.types.DateType;
-import io.delta.standalone.types.DecimalType;
-import io.delta.standalone.types.DoubleType;
-import io.delta.standalone.types.FloatType;
-import io.delta.standalone.types.IntegerType;
-import io.delta.standalone.types.LongType;
-import io.delta.standalone.types.MapType;
-import io.delta.standalone.types.ShortType;
-import io.delta.standalone.types.StringType;
-import io.delta.standalone.types.StructType;
-import io.delta.standalone.types.TimestampType;
+import io.delta.kernel.types.ArrayType;
+import io.delta.kernel.types.BinaryType;
+import io.delta.kernel.types.BooleanType;
+import io.delta.kernel.types.ByteType;
+import io.delta.kernel.types.DataType;
+import io.delta.kernel.types.DateType;
+import io.delta.kernel.types.DecimalType;
+import io.delta.kernel.types.DoubleType;
+import io.delta.kernel.types.FloatType;
+import io.delta.kernel.types.IntegerType;
+import io.delta.kernel.types.LongType;
+import io.delta.kernel.types.MapType;
+import io.delta.kernel.types.ShortType;
+import io.delta.kernel.types.StringType;
+import io.delta.kernel.types.StructType;
+import io.delta.kernel.types.TimestampType;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.type.Int128;
@@ -40,7 +40,6 @@ import io.trino.spi.type.RowFieldName;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeSignature;
 import io.trino.spi.type.TypeSignatureParameter;
-import io.trino.spi.type.VarbinaryType;
 import io.trino.spi.type.VarcharType;
 
 import java.math.BigDecimal;
@@ -50,7 +49,6 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -96,17 +94,21 @@ public class DeltaTypeUtils
      * @param columnName Used in error messages when an unsupported data type is encountered.
      * @param deltaType Data type to convert
      */
-    public static TypeSignature convertDeltaDataTypeTrinoDataType(SchemaTableName tableName, String columnName, DataType deltaType)
+    public static TypeSignature convertDeltaType(
+            SchemaTableName tableName,
+            String columnName,
+            DataType deltaType)
     {
         checkArgument(deltaType != null);
 
         if (deltaType instanceof StructType) {
             StructType deltaStructType = (StructType) deltaType;
-            ImmutableList.Builder<TypeSignatureParameter> typeSignatureBuilder = ImmutableList.builder();
-            Arrays.stream(deltaStructType.getFields())
+            ImmutableList.Builder<TypeSignatureParameter> typeSignatureBuilder =
+                    ImmutableList.builder();
+            deltaStructType.fields().stream()
                     .forEach(field -> {
                         String rowFieldName = field.getName().toLowerCase(Locale.US);
-                        TypeSignature rowFieldType = convertDeltaDataTypeTrinoDataType(
+                        TypeSignature rowFieldType = convertDeltaType(
                                 tableName,
                                 columnName + "." + field.getName(),
                                 field.getDataType());
@@ -120,7 +122,7 @@ public class DeltaTypeUtils
         }
         else if (deltaType instanceof ArrayType) {
             ArrayType deltaArrayType = (ArrayType) deltaType;
-            TypeSignature elementType = convertDeltaDataTypeTrinoDataType(
+            TypeSignature elementType = convertDeltaType(
                     tableName,
                     columnName,
                     deltaArrayType.getElementType());
@@ -130,14 +132,17 @@ public class DeltaTypeUtils
         }
         else if (deltaType instanceof MapType) {
             MapType deltaMapType = (MapType) deltaType;
-            TypeSignature keyType = convertDeltaDataTypeTrinoDataType(tableName, columnName, deltaMapType.getKeyType());
-            TypeSignature valueType = convertDeltaDataTypeTrinoDataType(tableName, columnName, deltaMapType.getValueType());
+            TypeSignature keyType =
+                    convertDeltaType(tableName, columnName, deltaMapType.getKeyType());
+            TypeSignature valueType =
+                    convertDeltaType(tableName, columnName, deltaMapType.getValueType());
             return new TypeSignature(MAP, ImmutableList.of(
                     TypeSignatureParameter.typeParameter(keyType),
                     TypeSignatureParameter.typeParameter(valueType)));
         }
 
-        return convertDeltaPrimitiveTypeToTrinoPrimitiveType(tableName, columnName, deltaType).getTypeSignature();
+        return convertDeltaPrimitiveType(tableName, columnName, deltaType)
+                .getTypeSignature();
     }
 
     public static Object convertPartitionValue(
@@ -151,10 +156,12 @@ public class DeltaTypeUtils
 
         try {
             if (type.equals(BOOLEAN)) {
-                checkArgument(valueString.equalsIgnoreCase("true") || valueString.equalsIgnoreCase("false"));
+                checkArgument(valueString.equalsIgnoreCase("true") ||
+                        valueString.equalsIgnoreCase("false"));
                 return Boolean.valueOf(valueString);
             }
-            if (type.equals(TINYINT) || type.equals(SMALLINT) || type.equals(INTEGER) || type.equals(BIGINT)) {
+            if (type.equals(TINYINT) || type.equals(SMALLINT) || type.equals(INTEGER) ||
+                    type.equals(BIGINT)) {
                 return parseLong(valueString);
             }
             if (type.equals(REAL)) {
@@ -166,12 +173,13 @@ public class DeltaTypeUtils
             if (type instanceof VarcharType) {
                 Slice value = utf8Slice(valueString);
                 VarcharType varcharType = (VarcharType) type;
-                if (!varcharType.isUnbounded() && SliceUtf8.countCodePoints(value) > varcharType.getBoundedLength()) {
+                if (!varcharType.isUnbounded() &&
+                        SliceUtf8.countCodePoints(value) > varcharType.getBoundedLength()) {
                     throw new IllegalArgumentException();
                 }
                 return value;
             }
-            if (type.equals(VarbinaryType.VARBINARY)) {
+            if (type.equals(VARBINARY)) {
                 return utf8Slice(valueString);
             }
             if (type instanceof io.trino.spi.type.DecimalType decimalType) {
@@ -181,14 +189,16 @@ public class DeltaTypeUtils
                     throw new IllegalArgumentException();
                 }
                 BigInteger unscaledValue = decimal.unscaledValue();
-                return decimalType.isShort() ? unscaledValue.longValue() : Int128.valueOf(unscaledValue);
+                return decimalType.isShort() ? unscaledValue.longValue() :
+                        Int128.valueOf(unscaledValue);
             }
             if (type.equals(DATE)) {
                 return LocalDate.parse(valueString, DateTimeFormatter.ISO_LOCAL_DATE).toEpochDay();
             }
             if (type.equals(TIMESTAMP_MICROS)) {
                 // Delta partition serialized value contains upto the second precision
-                return Timestamp.valueOf(valueString).toLocalDateTime().toEpochSecond(ZoneOffset.UTC) * 1_000_000;
+                return Timestamp.valueOf(valueString).toLocalDateTime()
+                        .toEpochSecond(ZoneOffset.UTC) * 1_000_000;
             }
             throw new TrinoException(DELTA_UNSUPPORTED_COLUMN_TYPE,
                     format("Unsupported data type '%s' for partition column %s", type, columnName));
@@ -196,17 +206,19 @@ public class DeltaTypeUtils
         catch (IllegalArgumentException | DateTimeParseException e) {
             throw new TrinoException(
                     DELTA_INVALID_PARTITION_VALUE,
-                    format("Can not parse partition value '%s' of type '%s' for partition column '%s'", valueString, type, columnName),
+                    format("Can not parse partition value '%s' of type '%s' for partition column '%s'",
+                            valueString, type, columnName),
                     e);
         }
     }
 
-    private static Type convertDeltaPrimitiveTypeToTrinoPrimitiveType(SchemaTableName tableName, String columnName, DataType deltaType)
+    private static Type convertDeltaPrimitiveType(SchemaTableName tableName,
+            String columnName, DataType deltaType)
     {
         if (deltaType instanceof BinaryType) {
             return VARBINARY;
         }
-        else if (deltaType instanceof BooleanType) {
+        if (deltaType instanceof BooleanType) {
             return BOOLEAN;
         }
         else if (deltaType instanceof ByteType) {
@@ -245,6 +257,6 @@ public class DeltaTypeUtils
                 format("Column '%s' in Delta table %s contains unsupported data type: %s",
                         columnName,
                         tableName,
-                        deltaType.getCatalogString()));
+                        deltaType));
     }
 }
