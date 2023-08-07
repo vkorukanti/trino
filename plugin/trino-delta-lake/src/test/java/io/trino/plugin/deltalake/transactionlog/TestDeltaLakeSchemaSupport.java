@@ -39,7 +39,9 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -164,6 +166,25 @@ public class TestDeltaLakeSchemaSupport
                         Optional.of(ImmutableMap.of("c", 51)),
                         Optional.of(ImmutableMap.of("c", 1L)))),
                 "{\"numRecords\":100,\"minValues\":{\"c\":42},\"maxValues\":{\"c\":51},\"nullCount\":{\"c\":1}}");
+    }
+
+    @Test
+    public void reproNullStatsBug()
+            throws JsonProcessingException
+    {
+        Map<String, Object> minValues = new HashMap<>() {{
+            put("c", null);
+        }};
+        Map<String, Object> maxValues = new HashMap<>() {{
+            put("c", null);
+        }};
+        assertEquals(serializeStatsAsJson(
+                        new DeltaLakeJsonFileStatistics(
+                                Optional.of(1L),
+                                Optional.of(minValues),
+                                Optional.of(maxValues),
+                                Optional.of(ImmutableMap.of("c", 1L)))),
+                "{\"numRecords\":1,\"minValues\":{\"c\":null},\"maxValues\":{\"c\":null},\"nullCount\":{\"c\":1}}");
     }
 
     @Test
