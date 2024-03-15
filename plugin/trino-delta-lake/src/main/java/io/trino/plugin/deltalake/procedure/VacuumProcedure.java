@@ -62,6 +62,7 @@ import static io.trino.plugin.base.util.Procedures.checkProcedureArgument;
 import static io.trino.plugin.deltalake.DeltaLakeMetadata.MAX_WRITER_VERSION;
 import static io.trino.plugin.deltalake.DeltaLakeMetadata.checkValidTableHandle;
 import static io.trino.plugin.deltalake.DeltaLakeSessionProperties.getVacuumMinRetention;
+import static io.trino.plugin.deltalake.DeltaLakeSessionProperties.isDeltaKernelEnabled;
 import static io.trino.plugin.deltalake.transactionlog.DeltaLakeSchemaSupport.unsupportedWriterFeatures;
 import static io.trino.plugin.deltalake.transactionlog.TransactionLogUtil.TRANSACTION_LOG_DIRECTORY;
 import static io.trino.plugin.deltalake.transactionlog.TransactionLogUtil.getTransactionLogDir;
@@ -168,7 +169,7 @@ public class VacuumProcedure
 
         Instant threshold = Instant.now().minusMillis(retentionDuration.toMillis());
 
-        DeltaLakeMetadata metadata = metadataFactory.create(session.getIdentity());
+        DeltaLakeMetadata metadata = metadataFactory.create(session.getIdentity(), isDeltaKernelEnabled(session));
         metadata.beginQuery(session);
         try (UncheckedCloseable ignore = () -> metadata.cleanupQuery(session)) {
             SchemaTableName tableName = new SchemaTableName(schema, table);

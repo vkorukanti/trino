@@ -16,11 +16,7 @@ package io.trino.plugin.deltalake.functions.tablechanges;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 import io.trino.plugin.base.util.UncheckedCloseable;
-import io.trino.plugin.deltalake.CorruptedDeltaLakeTableHandle;
-import io.trino.plugin.deltalake.DeltaLakeColumnHandle;
-import io.trino.plugin.deltalake.DeltaLakeMetadata;
-import io.trino.plugin.deltalake.DeltaLakeMetadataFactory;
-import io.trino.plugin.deltalake.DeltaLakeTableHandle;
+import io.trino.plugin.deltalake.*;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorAccessControl;
 import io.trino.spi.connector.ConnectorSession;
@@ -43,6 +39,7 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.trino.plugin.base.util.Functions.checkFunctionArgument;
 import static io.trino.plugin.deltalake.DeltaLakeColumnType.SYNTHESIZED;
+import static io.trino.plugin.deltalake.DeltaLakeSessionProperties.isDeltaKernelEnabled;
 import static io.trino.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
 import static io.trino.spi.function.table.ReturnTypeSpecification.GenericTable.GENERIC_TABLE;
 import static io.trino.spi.type.BigintType.BIGINT;
@@ -104,7 +101,7 @@ public class TableChangesFunction
         }
         long firstReadVersion = sinceVersion + 1; // +1 to ensure that the since_version is exclusive; may overflow
 
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(session.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(session.getIdentity(), isDeltaKernelEnabled(session));
         deltaLakeMetadata.beginQuery(session);
         try (UncheckedCloseable ignore = () -> deltaLakeMetadata.cleanupQuery(session)) {
             SchemaTableName schemaTableName = new SchemaTableName(schemaName, tableName);

@@ -38,7 +38,7 @@
         <module>core/trino-server-main</module>
         <module>core/trino-server-rpm</module>
         <module>core/trino-spi</module>
-        <module>docs</module>
+        <!-- Docker issues - disable for now <module>docs</module> -->
         <module>lib/trino-array</module>
         <module>lib/trino-cache</module>
         <module>lib/trino-filesystem</module>
@@ -186,6 +186,7 @@
         <dep.aws-sdk.version>1.12.674</dep.aws-sdk.version>
         <dep.cassandra.version>4.17.0</dep.cassandra.version>
         <dep.confluent.version>7.5.1</dep.confluent.version>
+        <dep.delta.kernel.version>3.1.0</dep.delta.kernel.version>
         <dep.docker.images.version>91</dep.docker.images.version>
         <dep.drift.version>1.21</dep.drift.version>
         <dep.errorprone.version>2.25.0</dep.errorprone.version>
@@ -836,6 +837,18 @@
                 <groupId>io.confluent</groupId>
                 <artifactId>kafka-schema-serializer</artifactId>
                 <version>${dep.confluent.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.delta</groupId>
+                <artifactId>delta-kernel-api</artifactId>
+                <version>${dep.delta.kernel.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.delta</groupId>
+                <artifactId>delta-kernel-defaults</artifactId>
+                <version>${dep.delta.kernel.version}</version>
             </dependency>
 
             <dependency>

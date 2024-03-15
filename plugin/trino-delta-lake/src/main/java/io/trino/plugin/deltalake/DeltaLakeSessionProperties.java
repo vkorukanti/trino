@@ -75,6 +75,7 @@ public final class DeltaLakeSessionProperties
     private static final String PROJECTION_PUSHDOWN_ENABLED = "projection_pushdown_enabled";
     private static final String QUERY_PARTITION_FILTER_REQUIRED = "query_partition_filter_required";
     private static final String CHECKPOINT_FILTERING_ENABLED = "checkpoint_filtering_enabled";
+    private static final String DELTA_KERNEL_ENABLED = "delta_kernel_enabled";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -230,6 +231,11 @@ public final class DeltaLakeSessionProperties
                         CHECKPOINT_FILTERING_ENABLED,
                         "Use filter in checkpoint reader",
                         deltaLakeConfig.isCheckpointFilteringEnabled(),
+                        false),
+                booleanProperty(
+                        DELTA_KERNEL_ENABLED,
+                        "Use Delta Kernel to read and write Delta tables",
+                        deltaLakeConfig.isDeltaKernelEnabled(),
                         false));
     }
 
@@ -347,5 +353,10 @@ public final class DeltaLakeSessionProperties
     public static boolean isCheckpointFilteringEnabled(ConnectorSession session)
     {
         return session.getProperty(CHECKPOINT_FILTERING_ENABLED, Boolean.class);
+    }
+
+    public static boolean isDeltaKernelEnabled(ConnectorSession session)
+    {
+        return session.getProperty(DELTA_KERNEL_ENABLED, Boolean.class);
     }
 }

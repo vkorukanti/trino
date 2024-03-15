@@ -154,7 +154,8 @@ public class DeltaLakeSplitManager
             Set<ColumnHandle> columnsCoveredByDynamicFilter,
             Constraint constraint)
     {
-        TableSnapshot tableSnapshot = deltaLakeTransactionManager.get(transaction, session.getIdentity())
+        TableSnapshot tableSnapshot = deltaLakeTransactionManager
+                .get(transaction, session.getIdentity(), DeltaLakeSessionProperties.isDeltaKernelEnabled(session))
                 .getSnapshot(session, tableHandle.getSchemaTableName(), tableHandle.getLocation(), tableHandle.getReadVersion());
         Stream<AddFileEntry> validDataFiles = transactionLogAccess.getActiveFiles(
                 session,

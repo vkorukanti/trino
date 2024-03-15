@@ -87,6 +87,7 @@ import static com.google.common.io.MoreFiles.deleteRecursively;
 import static com.google.common.io.RecursiveDeleteOption.ALLOW_INSECURE;
 import static io.airlift.testing.Closeables.closeAll;
 import static io.trino.plugin.deltalake.DeltaLakeColumnType.REGULAR;
+import static io.trino.plugin.deltalake.DeltaLakeSessionProperties.isDeltaKernelEnabled;
 import static io.trino.plugin.deltalake.DeltaLakeTableProperties.COLUMN_MAPPING_MODE_PROPERTY;
 import static io.trino.plugin.deltalake.DeltaLakeTableProperties.PARTITIONED_BY_PROPERTY;
 import static io.trino.plugin.deltalake.DeltaTestingConnectorSession.SESSION;
@@ -245,7 +246,7 @@ public class TestDeltaLakeMetadata
     @Test
     public void testGetNewTableLayout()
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
         Optional<ConnectorTableLayout> newTableLayout = deltaLakeMetadata.getNewTableLayout(
                 SESSION,
                 newTableMetadata(
@@ -266,7 +267,7 @@ public class TestDeltaLakeMetadata
     @Test
     public void testGetNewTableLayoutNoPartitionColumns()
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
         assertThat(deltaLakeMetadata.getNewTableLayout(
                 SESSION,
                 newTableMetadata(
@@ -280,7 +281,7 @@ public class TestDeltaLakeMetadata
     @Test
     public void testGetNewTableLayoutInvalidPartitionColumns()
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
         assertThatThrownBy(() -> deltaLakeMetadata.getNewTableLayout(
                 SESSION,
                 newTableMetadata(
@@ -303,7 +304,7 @@ public class TestDeltaLakeMetadata
     @Test
     public void testGetInsertLayout()
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
 
         ConnectorTableMetadata tableMetadata = newTableMetadata(
                 ImmutableList.of(BIGINT_COLUMN_1, BIGINT_COLUMN_2),
@@ -341,7 +342,7 @@ public class TestDeltaLakeMetadata
     @Test
     public void testGetInsertLayoutTableUnpartitioned()
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
 
         ConnectorTableMetadata tableMetadata = newTableMetadata(
                 ImmutableList.of(BIGINT_COLUMN_1),
@@ -416,7 +417,7 @@ public class TestDeltaLakeMetadata
             Set<DeltaLakeColumnHandle> expectedProjectedColumns,
             Map<String, ColumnHandle> expectedAssignments)
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
 
         ProjectionApplicationResult<ConnectorTableHandle> projection = deltaLakeMetadata
                 .applyProjection(
@@ -446,7 +447,7 @@ public class TestDeltaLakeMetadata
     @Test
     public void testApplyProjectionWithEmptyResult()
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
 
         assertThat(deltaLakeMetadata
                 .applyProjection(
@@ -472,7 +473,7 @@ public class TestDeltaLakeMetadata
     @Test
     public void testGetInputInfoForPartitionedTable()
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
         ConnectorTableMetadata tableMetadata = newTableMetadata(
                 ImmutableList.of(BIGINT_COLUMN_1, BIGINT_COLUMN_2),
                 ImmutableList.of(BIGINT_COLUMN_1));
@@ -485,7 +486,7 @@ public class TestDeltaLakeMetadata
     @Test
     public void testGetInputInfoForUnPartitionedTable()
     {
-        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity());
+        DeltaLakeMetadata deltaLakeMetadata = deltaLakeMetadataFactory.create(SESSION.getIdentity(), isDeltaKernelEnabled(SESSION));
         ConnectorTableMetadata tableMetadata = newTableMetadata(
                 ImmutableList.of(BIGINT_COLUMN_1, BIGINT_COLUMN_2),
                 ImmutableList.of());
