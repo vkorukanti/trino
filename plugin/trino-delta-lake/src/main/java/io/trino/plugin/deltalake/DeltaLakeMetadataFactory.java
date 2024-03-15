@@ -16,6 +16,7 @@ package io.trino.plugin.deltalake;
 import com.google.inject.Inject;
 import io.airlift.json.JsonCodec;
 import io.trino.filesystem.TrinoFileSystemFactory;
+import io.trino.plugin.deltalake.kernel.KernelDeltaLakeMetadata;
 import io.trino.plugin.deltalake.metastore.HiveMetastoreBackedDeltaLakeMetastore;
 import io.trino.plugin.deltalake.statistics.CachingExtendedStatisticsAccess;
 import io.trino.plugin.deltalake.statistics.FileBasedTableStatisticsProvider;
@@ -139,7 +140,8 @@ public class DeltaLakeMetadataFactory
                     statisticsAccess,
                     useUniqueTableLocation,
                     allowManagedTableRename);
-        } else {
+        }
+        else {
             return new DeltaLakeMetadata(
                     deltaLakeMetastore,
                     transactionLogAccess,

@@ -3814,4 +3814,9 @@ public class DeltaLakeMetadata
     {
         return Optional.ofNullable(database.getParameters().get(TRINO_QUERY_ID_NAME));
     }
+
+    protected DeltaLakeMetastore getMetadata()
+    {
+        return metastore;
+    }
 }

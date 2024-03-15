@@ -1832,6 +1832,18 @@
             </dependency>
 
             <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-client-api</artifactId>
+                <version>3.3.1</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-client-runtime</artifactId>
+                <version>3.3.1</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.apache.iceberg</groupId>
                 <artifactId>iceberg-api</artifactId>
                 <version>${dep.iceberg.version}</version>

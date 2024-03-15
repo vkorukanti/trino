@@ -100,6 +100,22 @@
         </dependency>
 
         <dependency>
+            <groupId>io.delta</groupId>
+            <artifactId>delta-kernel-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.delta</groupId>
+            <artifactId>delta-kernel-defaults</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.hadoop</groupId>
+                    <artifactId>hadoop-client-runtime</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-cache</artifactId>
         </dependency>
@@ -127,6 +143,11 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-plugin-toolkit</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.trino.hadoop</groupId>
+            <artifactId>hadoop-apache</artifactId>
         </dependency>
 
         <dependency>
@@ -162,6 +183,16 @@
         <dependency>
             <groupId>org.apache.parquet</groupId>
             <artifactId>parquet-format-structures</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.parquet</groupId>
+            <artifactId>parquet-hadoop</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.parquet</groupId>
+            <artifactId>parquet-jackson</artifactId>
         </dependency>
 
         <dependency>
@@ -272,16 +303,6 @@
             <groupId>io.airlift</groupId>
             <artifactId>testing</artifactId>
             <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>io.delta</groupId>
-            <artifactId>delta-kernel-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>io.delta</groupId>
-            <artifactId>delta-kernel-defaults</artifactId>
         </dependency>
 
         <dependency>
@@ -410,11 +431,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!--
         <dependency>
             <groupId>io.trino.hadoop</groupId>
             <artifactId>hadoop-apache</artifactId>
             <scope>test</scope>
         </dependency>
+        -->
 
         <dependency>
             <groupId>io.trino.tpch</groupId>
@@ -478,6 +501,11 @@
                         <ignoredDependency>com.amazonaws:aws-java-sdk-core</ignoredDependency>
                         <ignoredDependency>org.apache.iceberg:iceberg-api</ignoredDependency>
                     </ignoredNonTestScopedDependencies>
+                    <ignoredUnusedDeclaredDependencies>
+                        <ignoredUsedUndeclaredDependency>org.apache.hadoop:hadoop-client-runtime</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.apache.parquet:parquet-hadoop</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.apache.parquet:parquet-jackson</ignoredUsedUndeclaredDependency>
+                    </ignoredUnusedDeclaredDependencies>
                 </configuration>
             </plugin>
 
