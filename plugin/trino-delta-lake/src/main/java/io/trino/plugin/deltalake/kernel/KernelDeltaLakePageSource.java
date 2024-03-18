@@ -13,11 +13,17 @@
  */
 package io.trino.plugin.deltalake.kernel;
 
+import io.delta.kernel.Scan;
 import io.delta.kernel.client.TableClient;
 import io.delta.kernel.data.ColumnVector;
 import io.delta.kernel.data.ColumnarBatch;
 import io.delta.kernel.data.FilteredColumnarBatch;
+import io.delta.kernel.data.Row;
+import io.delta.kernel.internal.InternalScanFileUtils;
+import io.delta.kernel.internal.data.ScanStateRow;
+import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterator;
+import io.delta.kernel.utils.FileStatus;
 import io.trino.filesystem.TrinoFileSystem;
 import io.trino.plugin.deltalake.kernel.data.AbstractTrinoColumnVectorWrapper;
 import io.trino.spi.Page;
@@ -27,8 +33,12 @@ import io.trino.spi.type.TypeManager;
 import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+
+import static io.delta.kernel.internal.util.Utils.singletonCloseableIterator;
 
 public class KernelDeltaLakePageSource
         implements ConnectorPageSource
@@ -68,12 +78,14 @@ public class KernelDeltaLakePageSource
     @Override
     public boolean isFinished()
     {
+        initBatchIteratorIfNotDone();
         return !dataBatchIterator.hasNext();
     }
 
     @Override
     public Page getNextPage()
     {
+        initBatchIteratorIfNotDone();
         if (isFinished()) {
             return null;
         }
@@ -102,6 +114,26 @@ public class KernelDeltaLakePageSource
     {
         if (dataBatchIterator == null) {
             TableClient tableClient = KernelClient.getTableClient(new Configuration(), trinoFileSystem, typeManager);
+            Row scanState = split.getScanState();
+            Row scanFile = split.getScanFile();
+            FileStatus fileStatus = InternalScanFileUtils.getAddFileStatus(scanFile);
+            StructType physicalReadSchema = ScanStateRow.getPhysicalDataReadSchema(tableClient, scanState);
+            try {
+                CloseableIterator<ColumnarBatch> physicalDataIter =
+                        tableClient.getParquetHandler().readParquetFiles(
+                                singletonCloseableIterator(fileStatus),
+                                physicalReadSchema,
+                                Optional.empty());
+                dataBatchIterator =
+                        Scan.transformPhysicalData(
+                                tableClient,
+                                scanState,
+                                scanFile,
+                                physicalDataIter);
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 

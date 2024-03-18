@@ -37,6 +37,7 @@ import io.trino.plugin.hive.parquet.ParquetPageSourceFactory;
 import io.trino.spi.Page;
 import io.trino.spi.connector.ConnectorPageSource;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
 import org.apache.hadoop.conf.Configuration;
@@ -112,7 +113,7 @@ public class KernelParquetHandler
                             0L /* start index in file */,
                             inputFile.length(),
                             createHiveHandles(physicalSchema),
-                            Collections.emptyList() /* disjunctTupleDomains */,
+                            Collections.singletonList(TupleDomain.all()) /* disjunctTupleDomains */,
                             true /* useColumnNames */,
                             DateTimeZone.getDefault(),
                             new FileFormatDataSourceStats(),
