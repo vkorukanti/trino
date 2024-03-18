@@ -376,11 +376,11 @@ public class DeltaLakeMetadata
 
     private static final String CHECK_CONSTRAINT_CONVERT_FAIL_EXPRESSION = "CAST(fail('Failed to convert Delta check constraints to Trino expression') AS boolean)";
 
-    private final DeltaLakeMetastore metastore;
+    protected final DeltaLakeMetastore metastore;
     private final TransactionLogAccess transactionLogAccess;
     private final DeltaLakeTableStatisticsProvider tableStatisticsProvider;
-    private final TrinoFileSystemFactory fileSystemFactory;
-    private final TypeManager typeManager;
+    protected final TrinoFileSystemFactory fileSystemFactory;
+    protected final TypeManager typeManager;
     private final AccessControlMetadata accessControlMetadata;
     private final TrinoViewHiveMetastore trinoViewHiveMetastore;
     private final CheckpointWriterManager checkpointWriterManager;
@@ -393,7 +393,7 @@ public class DeltaLakeMetadata
     private final String nodeVersion;
     private final String nodeId;
     private final AtomicReference<Runnable> rollbackAction = new AtomicReference<>();
-    private final DeltaLakeRedirectionsProvider deltaLakeRedirectionsProvider;
+    protected final DeltaLakeRedirectionsProvider deltaLakeRedirectionsProvider;
     private final CachingExtendedStatisticsAccess statisticsAccess;
     private final boolean deleteSchemaLocationsFallback;
     private final boolean useUniqueTableLocation;
@@ -700,7 +700,7 @@ public class DeltaLakeMetadata
         return getColumnMetadata(deltaTable, (DeltaLakeColumnHandle) columnHandle);
     }
 
-    private static ColumnMetadata getColumnMetadata(DeltaLakeTable deltaTable, DeltaLakeColumnHandle column)
+    protected static ColumnMetadata getColumnMetadata(DeltaLakeTable deltaTable, DeltaLakeColumnHandle column)
     {
         if (column.getProjectionInfo().isPresent() || column.getColumnType() == SYNTHESIZED) {
             return getColumnMetadata(column, null, true, Optional.empty());
@@ -3797,7 +3797,7 @@ public class DeltaLakeMetadata
         return Domain.notNull(type);
     }
 
-    private static DeltaLakeColumnHandle toColumnHandle(String originalName, Type type, OptionalInt fieldId, String physicalName, Type physicalType, Collection<String> partitionColumns)
+    protected static DeltaLakeColumnHandle toColumnHandle(String originalName, Type type, OptionalInt fieldId, String physicalName, Type physicalType, Collection<String> partitionColumns)
     {
         boolean isPartitionKey = partitionColumns.stream().anyMatch(partition -> partition.equalsIgnoreCase(originalName));
         return new DeltaLakeColumnHandle(
@@ -3813,10 +3813,5 @@ public class DeltaLakeMetadata
     private static Optional<String> getQueryId(Database database)
     {
         return Optional.ofNullable(database.getParameters().get(TRINO_QUERY_ID_NAME));
-    }
-
-    protected DeltaLakeMetastore getMetadata()
-    {
-        return metastore;
     }
 }

@@ -18,31 +18,53 @@ import io.delta.kernel.client.FileSystemClient;
 import io.delta.kernel.client.JsonHandler;
 import io.delta.kernel.client.ParquetHandler;
 import io.delta.kernel.client.TableClient;
+import io.delta.kernel.defaults.client.DefaultExpressionHandler;
+import io.delta.kernel.defaults.client.DefaultFileSystemClient;
+import io.trino.filesystem.TrinoFileSystem;
+import io.trino.spi.type.TypeManager;
+import org.apache.hadoop.conf.Configuration;
 
 public class KernelTableClient
         implements TableClient
 {
+    private final Configuration configuration;
+    private final TrinoFileSystem fileSystem;
+    private final TypeManager typeManager;
+
+    public KernelTableClient(
+            Configuration configuration,
+            TrinoFileSystem fileSystem,
+            TypeManager typeManager)
+    {
+        this.configuration = configuration;
+        this.fileSystem = fileSystem;
+        this.typeManager = typeManager;
+    }
+
     @Override
     public ExpressionHandler getExpressionHandler()
     {
-        return null;
+        return new DefaultExpressionHandler();
     }
 
     @Override
     public JsonHandler getJsonHandler()
     {
-        return null;
+        return new KernelJsonHandler(configuration);
     }
 
     @Override
     public FileSystemClient getFileSystemClient()
     {
-        return null;
+        return new DefaultFileSystemClient(configuration);
     }
 
     @Override
     public ParquetHandler getParquetHandler()
     {
-        return null;
+        return new KernelParquetHandler(
+                configuration,
+                fileSystem,
+                typeManager);
     }
 }

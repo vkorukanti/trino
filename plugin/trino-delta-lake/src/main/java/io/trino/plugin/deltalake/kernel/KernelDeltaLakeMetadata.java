@@ -13,17 +13,19 @@
  */
 package io.trino.plugin.deltalake.kernel;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import io.airlift.json.JsonCodec;
 import io.delta.kernel.Snapshot;
-import io.delta.kernel.Table;
-import io.delta.kernel.TableNotFoundException;
-import io.delta.kernel.defaults.client.DefaultTableClient;
 import io.delta.kernel.types.StructType;
 import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.plugin.deltalake.DataFileInfo;
+import io.trino.plugin.deltalake.DeltaLakeColumnHandle;
+import io.trino.plugin.deltalake.DeltaLakeInputInfo;
 import io.trino.plugin.deltalake.DeltaLakeMergeResult;
 import io.trino.plugin.deltalake.DeltaLakeMetadata;
 import io.trino.plugin.deltalake.DeltaLakeRedirectionsProvider;
+import io.trino.plugin.deltalake.DeltaLakeTable;
 import io.trino.plugin.deltalake.DeltaLakeTableName;
 import io.trino.plugin.deltalake.LocatedTableHandle;
 import io.trino.plugin.deltalake.metastore.DeltaLakeMetastore;
@@ -36,25 +38,36 @@ import io.trino.plugin.deltalake.transactionlog.writer.TransactionLogWriterFacto
 import io.trino.plugin.hive.TrinoViewHiveMetastore;
 import io.trino.plugin.hive.security.AccessControlMetadata;
 import io.trino.spi.NodeManager;
+import io.trino.spi.connector.ColumnHandle;
+import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.ConnectorTableMetadata;
+import io.trino.spi.connector.ConnectorTableProperties;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.connector.TableScanRedirectApplicationResult;
+import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.conf.Configuration;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.OptionalInt;
+import java.util.stream.Collectors;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static io.trino.plugin.deltalake.DeltaLakeColumnHandle.fileModifiedTimeColumnHandle;
+import static io.trino.plugin.deltalake.DeltaLakeColumnHandle.fileSizeColumnHandle;
+import static io.trino.plugin.deltalake.DeltaLakeColumnHandle.pathColumnHandle;
+import static io.trino.plugin.deltalake.DeltaLakeTableProperties.LOCATION_PROPERTY;
+import static io.trino.plugin.deltalake.kernel.KernelSchemaUtils.toTrinoType;
 import static java.util.Objects.requireNonNull;
+
 public class KernelDeltaLakeMetadata
         extends DeltaLakeMetadata
 {
-    private static final Map<SnapshotKey, Snapshot> snapshotCache = new ConcurrentHashMap<>();
-    private DefaultTableClient tableClient = DefaultTableClient.create(new Configuration());
-
     public KernelDeltaLakeMetadata(DeltaLakeMetastore metastore,
             TransactionLogAccess transactionLogAccess,
             DeltaLakeTableStatisticsProvider tableStatisticsProvider,
@@ -115,68 +128,149 @@ public class KernelDeltaLakeMetadata
         boolean managed = table.get().managed();
         String tableLocation = table.get().location();
 
-        try {
-            Table deltaTable = Table.forPath(tableClient, tableLocation);
-
-            Snapshot snapshot = deltaTable.getLatestSnapshot(tableClient);
-            long version = snapshot.getVersion(tableClient);
-
-            SnapshotKey snapshotKey = new SnapshotKey(tableLocation, version);
-            snapshotCache.put(snapshotKey, snapshot);
-            return new KernelDeltaLakeTableHandle(
-                    tableName.getSchemaName(),
-                    tableName.getTableName(),
-                    managed,
-                    tableLocation,
-                    version);
-        } catch (TableNotFoundException tbne) {
+        Optional<Snapshot> snapshot = KernelClient.getSnapshot(tableLocation);
+        if (snapshot.isEmpty()) {
             return null;
         }
+        return new KernelDeltaLakeTableHandle(
+                tableName.getSchemaName(),
+                tableName.getTableName(),
+                managed,
+                tableLocation,
+                Optional.empty(),
+                KernelClient.getVersion(snapshot.get()),
+                snapshot);
     }
 
     @Override
     public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table)
     {
-        return super.getTableMetadata(session, table);
+        KernelDeltaLakeTableHandle tableHandle = checkValidKernelTableHandle(table);
+        // This method does not calculate column metadata for the projected columns
+        checkArgument(tableHandle.getProjectedColumns().isEmpty(), "Unexpected projected columns");
+
+        Snapshot snapshot = tableHandle.getDeltaSnapshot().orElseThrow(
+                        // TODO: this shouldn't happen, but it's better to handle it gracefully
+                        () -> new RuntimeException("table not found"));
+
+        List<ColumnMetadata> columns = KernelClient.getTableColumnMetadata(
+                tableHandle.getSchemaTableName(),
+                snapshot,
+                typeManager);
+
+        // DeltaLakeTable deltaTable = DeltaLakeTable.builder(snapshot.getSchema(tableClient)).build();
+        ImmutableMap.Builder<String, Object> properties = ImmutableMap.<String, Object>builder()
+                .put(LOCATION_PROPERTY, tableHandle.getLocation());
+        // List<String> partitionColumnNames = metadataEntry.getLowercasePartitionColumns();
+        // if (!partitionColumnNames.isEmpty()) {
+        //     properties.put(PARTITIONED_BY_PROPERTY, partitionColumnNames);
+        // }
+
+        // checkpointInterval.ifPresent(value -> properties.put(CHECKPOINT_INTERVAL_PROPERTY, value));
+        // changeDataFeedEnabled(metadataEntry, protocolEntry)
+        //        .ifPresent(value -> properties.put(CHANGE_DATA_FEED_ENABLED_PROPERTY, value));
+
+        // DeltaLakeSchemaSupport.ColumnMappingMode columnMappingMode = getColumnMappingMode(metadataEntry, protocolEntry);
+        // if (columnMappingMode != NONE) {
+        //     properties.put(COLUMN_MAPPING_MODE_PROPERTY, columnMappingMode.name());
+        //}
+
+        return new ConnectorTableMetadata(
+                tableHandle.getSchemaTableName(),
+                columns,
+                properties.buildOrThrow(),
+                Optional.of("Delta table description" /* TODO: fetch from Delta table */),
+                Collections.emptyList() /* constraints */);
     }
 
-    private static class SnapshotKey {
-        private final String tableLocation;
-        private final long snapshotVersion;
+    @Override
+    public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle table)
+    {
+        KernelDeltaLakeTableHandle tableHandle = checkValidKernelTableHandle(table);
+        Snapshot snapshot = tableHandle.getDeltaSnapshot().orElseThrow(
+                // TODO: this shouldn't happen, but it's better to handle it gracefully
+                () -> new RuntimeException("table not found"));
 
-        public SnapshotKey(String tableLocation, long snapshotVersion)
-        {
-            this.tableLocation = tableLocation;
-            this.snapshotVersion = snapshotVersion;
-        }
+        return getColumns(tableHandle.getSchemaTableName(), KernelClient.getSchema(snapshot)).stream()
+                .collect(Collectors.toMap(DeltaLakeColumnHandle::getBaseColumnName, column -> column));
+    }
 
-        public String getTableLocation()
-        {
-            return tableLocation;
-        }
+    @Override
+    public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle table, ColumnHandle columnHandle)
+    {
+        KernelDeltaLakeTableHandle tableHandle = checkValidKernelTableHandle(table);
+        Snapshot snapshot = tableHandle.getDeltaSnapshot().orElseThrow(
+                // TODO: this shouldn't happen, but it's better to handle it gracefully
+                () -> new RuntimeException("table not found"));
 
-        public long getSnapshotVersion()
-        {
-            return snapshotVersion;
-        }
+        DeltaLakeTable deltaTable = DeltaLakeTable.builder(KernelClient.getSchema(snapshot)).build();
+        return getColumnMetadata(deltaTable, (DeltaLakeColumnHandle) columnHandle);
+    }
 
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            SnapshotKey that = (SnapshotKey) o;
-            return snapshotVersion == that.snapshotVersion && Objects.equals(tableLocation, that.tableLocation);
-        }
+    @Override
+    public Optional<TableScanRedirectApplicationResult> applyTableScanRedirect(ConnectorSession session, ConnectorTableHandle tableHandle)
+    {
+        return Optional.empty(); // TODO: fill this out. Not needed now.
+    }
 
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(tableLocation, snapshotVersion);
+    @Override
+    public ConnectorTableProperties getTableProperties(ConnectorSession session, ConnectorTableHandle table)
+    {
+        KernelDeltaLakeTableHandle tableHandle = checkValidKernelTableHandle(table);
+        return new ConnectorTableProperties(
+                TupleDomain.all(), /* fill out enforced predicate when pruning is supported */
+                Optional.empty(), /* table partitioning */
+                Optional.empty(), /* discrete predicates */
+                Collections.emptyList() /* local properties */);
+    }
+
+    @Override
+    public SchemaTableName getTableName(ConnectorSession session, ConnectorTableHandle table)
+    {
+        return checkValidKernelTableHandle(table).getSchemaTableName();
+    }
+
+    @Override
+    public void validateScan(ConnectorSession session, ConnectorTableHandle handle)
+    {
+        KernelDeltaLakeTableHandle tableHandle = checkValidKernelTableHandle(handle);
+        // TODO: validate the scan has partition filter
+    }
+
+    @Override
+    public Optional<Object> getInfo(ConnectorTableHandle table)
+    {
+        KernelDeltaLakeTableHandle tableHandle = checkValidKernelTableHandle(table);
+        return Optional.of(new DeltaLakeInputInfo(false /* TODO: partitioned */, tableHandle.getReadVersion()));
+    }
+
+    private KernelDeltaLakeTableHandle checkValidKernelTableHandle(ConnectorTableHandle tableHandle)
+    {
+        requireNonNull(tableHandle, "tableHandle is null");
+        if (!(tableHandle instanceof KernelDeltaLakeTableHandle)) {
+            throw new IllegalArgumentException("tableHandle is not an instance of KernelDeltaLakeTableHandle");
         }
+        return ((KernelDeltaLakeTableHandle) tableHandle);
+    }
+
+    private List<DeltaLakeColumnHandle> getColumns(SchemaTableName tableName, StructType schema)
+    {
+        ImmutableList.Builder<DeltaLakeColumnHandle> columns = ImmutableList.builder();
+
+        schema.fields().forEach(field -> {
+            Type type = toTrinoType(tableName, typeManager, field.getDataType());
+            columns.add(toColumnHandle(
+                    field.getName(),
+                    type,
+                    OptionalInt.empty(), /* fill out the field id */
+                    field.getName(), /* fill out the physical name */
+                    type,
+                    Collections.emptyList()));
+        });
+
+        columns.add(pathColumnHandle());
+        columns.add(fileSizeColumnHandle());
+        columns.add(fileModifiedTimeColumnHandle());
+        return columns.build();
     }
 }

@@ -11,16 +11,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.deltalake.kernel.clients;
+package io.trino.plugin.deltalake.kernel.data;
 
-import io.delta.kernel.defaults.client.DefaultJsonHandler;
-import org.apache.hadoop.conf.Configuration;
+import io.delta.kernel.data.ColumnVector;
+import io.trino.spi.block.Block;
 
-public class KernelJsonHandler
-        extends DefaultJsonHandler
+public abstract class AbstractTrinoColumnVectorWrapper
+        implements ColumnVector
 {
-    public KernelJsonHandler(Configuration configuration)
+    public abstract Block getTrinoBlock();
+
+    @Override
+    public void close()
     {
-        super(configuration);
+        // there is nothing to close in Trino vectors as they are heap based and managed by the JVM
     }
 }

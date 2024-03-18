@@ -501,6 +501,9 @@
                         <ignoredDependency>com.amazonaws:aws-java-sdk-core</ignoredDependency>
                         <ignoredDependency>org.apache.iceberg:iceberg-api</ignoredDependency>
                     </ignoredNonTestScopedDependencies>
+                    <ignoredUsedUndeclaredDependencies>
+                        <ignoredUnusedDeclaredDependency>jakarta.inject:jakarta.inject-api</ignoredUnusedDeclaredDependency>
+                    </ignoredUsedUndeclaredDependencies>
                     <ignoredUnusedDeclaredDependencies>
                         <ignoredUsedUndeclaredDependency>org.apache.hadoop:hadoop-client-runtime</ignoredUsedUndeclaredDependency>
                         <ignoredUsedUndeclaredDependency>org.apache.parquet:parquet-hadoop</ignoredUsedUndeclaredDependency>

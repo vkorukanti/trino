@@ -14,11 +14,16 @@
 package io.trino.plugin.deltalake.kernel;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.delta.kernel.Snapshot;
+import io.trino.plugin.deltalake.DeltaLakeColumnHandle;
 import io.trino.plugin.deltalake.LocatedTableHandle;
 import io.trino.spi.connector.SchemaTableName;
 
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 public class KernelDeltaLakeTableHandle
         implements LocatedTableHandle
@@ -27,7 +32,12 @@ public class KernelDeltaLakeTableHandle
     private final String tableName;
     private final boolean managed;
     private final String location;
+    private final Optional<Set<DeltaLakeColumnHandle>> projectedColumns;
     private final long readVersion;
+
+    // Snapshot of the table being read. Initialized when table scanshot is created.
+    // Used to avoid repeating the scan creation. This is not serialized and sent to workers.
+    private Optional<Snapshot> deltaSnapshot = Optional.empty();
 
     @JsonCreator
     public KernelDeltaLakeTableHandle(
@@ -35,13 +45,33 @@ public class KernelDeltaLakeTableHandle
             @JsonProperty("tableName") String tableName,
             @JsonProperty("managed") boolean managed,
             @JsonProperty("location") String location,
+            @JsonProperty("projectedColumns") Optional<Set<DeltaLakeColumnHandle>> projectedColumns,
             @JsonProperty("readVersion") long readVersion)
+    {
+        this(schemaName, tableName, managed, location, projectedColumns, readVersion, Optional.empty() /* deltaScan */);
+    }
+
+    public KernelDeltaLakeTableHandle(
+            String schemaName,
+            String tableName,
+            boolean managed,
+            String location,
+            Optional<Set<DeltaLakeColumnHandle>> projectedColumns,
+            long readVersion,
+            Optional<Snapshot> deltaSnapshot)
     {
         this.schemaName = schemaName;
         this.tableName = tableName;
         this.managed = managed;
         this.location = location;
+        this.projectedColumns = projectedColumns;
         this.readVersion = readVersion;
+        this.deltaSnapshot = deltaSnapshot;
+    }
+
+    public KernelDeltaLakeTableHandle withSnapshot(Snapshot snapshot)
+    {
+        return new KernelDeltaLakeTableHandle(schemaName, tableName, managed, location, projectedColumns, readVersion, Optional.of(snapshot));
     }
 
     @Override
@@ -92,9 +122,21 @@ public class KernelDeltaLakeTableHandle
     }
 
     @JsonProperty
+    public Optional<Set<DeltaLakeColumnHandle>> getProjectedColumns()
+    {
+        return projectedColumns;
+    }
+
+    @JsonProperty
     public long getReadVersion()
     {
         return readVersion;
+    }
+
+    @JsonIgnore
+    public Optional<Snapshot> getDeltaSnapshot()
+    {
+        return deltaSnapshot;
     }
 
     @Override
